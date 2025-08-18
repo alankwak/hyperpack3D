@@ -42,7 +42,8 @@ class Dimensions(UserDict):
     def __init__(self, dimensions=None, reference_structure=None, instance=None):
         # dimensions = {
         #   "w or W": int,
-        #   "l or W": int
+        #   "l or L": int,
+        #   "h or H": int
         # }
 
         # it is propagated from Structure. Problem instance
@@ -76,7 +77,7 @@ class Dimensions(UserDict):
 
     def validate_data(self, key, item):
         """
-        key must be "W" or "L" / "w" or "l".
+        key must be "W", "L", "H / "w", "l", "h".
         value must be positive number.
         """
         if key not in self.proper_keys:
@@ -205,7 +206,7 @@ class Containers(AbstractStructureSet):
     of the HyperPack class, by proper subclassing of AbstractStructureSet.
     """
 
-    PROPER_DIMENSIONS_KEYS = ("W", "L")
+    PROPER_DIMENSIONS_KEYS = ("W", "L", "H")
     ERROR_CLASS = ContainersError
 
     def __init__(self, containers=None, instance=None):
@@ -243,7 +244,7 @@ class Containers(AbstractStructureSet):
                 solution = self.instance.solution[cont_id]
                 # height of items stack in solution
                 solution_height = max(
-                    [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                    [solution[item_id][2] + solution[item_id][5] for item_id in solution]
                     or [0]
                 )
 
@@ -253,7 +254,7 @@ class Containers(AbstractStructureSet):
 
                 return solution_height
         else:
-            return self.data[cont_id]["L"]
+            return self.data[cont_id]["H"]
 
     def _set_height(self):
         cont_id = self.instance.STRIP_PACK_CONT_ID
@@ -265,7 +266,7 @@ class Containers(AbstractStructureSet):
             solution = self.instance.solution[cont_id]
             # height of items stack in solution
             solution_height = max(
-                [solution[item_id][1] + solution[item_id][3] for item_id in solution]
+                [solution[item_id][2] + solution[item_id][5] for item_id in solution]
                 or [0]
             )
 
@@ -282,17 +283,19 @@ class Containers(AbstractStructureSet):
         class_name = "Containers"
         width_key = self.PROPER_DIMENSIONS_KEYS[0]
         length_key = self.PROPER_DIMENSIONS_KEYS[1]
+        height_key = self.PROPER_DIMENSIONS_KEYS[2]
 
         strings_list.append(class_name)
         for structure_id in self.data:
             width = self.data[structure_id][width_key]
             length = self.data[structure_id][length_key]
+            height = self.data[structure_id][height_key]
 
             if self.instance._strip_pack:
-                strings_list.append(f"  - id: {structure_id}\n    width: {width}\n")
+                strings_list.append(f"  - id: {structure_id}\n    width: {width}\n  length: {length}\n")
             else:
                 strings_list.append(
-                    f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
+                    f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n    height: {height}\n"
                 )
 
         return "\n".join(strings_list)
@@ -304,7 +307,7 @@ class Items(AbstractStructureSet):
     of the HyperPack class, by proper subclassing of AbstractStructureSet.
     """
 
-    PROPER_DIMENSIONS_KEYS = ("w", "l")
+    PROPER_DIMENSIONS_KEYS = ("w", "l", "h")
     ERROR_CLASS = ItemsError
 
     def __init__(self, items=None, instance=None):
@@ -315,13 +318,15 @@ class Items(AbstractStructureSet):
         class_name = "Items"
         width_key = self.PROPER_DIMENSIONS_KEYS[0]
         length_key = self.PROPER_DIMENSIONS_KEYS[1]
+        height_key = self.PROPER_DIMENSIONS_KEYS[2]
 
         strings_list.append(class_name)
         for structure_id in self.data:
             width = self.data[structure_id][width_key]
             length = self.data[structure_id][length_key]
+            height = self.data[structure_id][height_key]
             strings_list.append(
-                f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n"
+                f"  - id: {structure_id}\n    width: {width}\n    length: {length}\n    height: {height}\n"
             )
 
         return "\n".join(strings_list)
