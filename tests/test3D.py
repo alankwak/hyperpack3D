@@ -1,5 +1,4 @@
 from hyperpack import HyperPack
-from hyperpack.mixins import PointGenerationMixin
 import logging
 import random
 logging.basicConfig(level=logging.DEBUG)
@@ -49,7 +48,7 @@ items = {
     #     "h": 10
     # },
 }
-for i in range(1, 40):
+for i in range(1, 30):
     items.update(
         [(f"item{i}", {
             "w": random.randint(1, 20),

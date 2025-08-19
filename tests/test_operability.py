@@ -10,15 +10,15 @@ DEFAULT_POTENTIAL_POINTS_STRATEGY = HyperPack.DEFAULT_POTENTIAL_POINTS_STRATEGY
 @pytest.mark.parametrize(
     "containers,items,points_seq,obj_val",
     [
-        (((2, 3), (2, 2)), ((2, 3), (1, 1)), ("A", "B"), 1.175),
-        (((2, 3),), ((2, 3),), ("A", "B"), 1),
-        (((2, 4), (3, 3)), ((2, 2), (3, 3)), ("A", "B"), 1.2),
-        (((2, 3), (3, 3), (3, 3)), ((2, 2), (3, 3), (2, 1)), ("A", "B"), 2),
+        (((2, 3, 1), (2, 2, 2)), ((2, 3, 1), (1, 1, 1)), ("A", "B"), 1.0875),
+        (((2, 3, 1),), ((2, 3, 1),), ("A", "B"), 1),
+        (((2, 4, 3),), ((2, 4, 2), (1, 2, 1)), ("A", "B", "C"), 0.7499259259259259),
+        (((2, 3, 1), (3, 3, 1), (3, 3, 1)), ((2, 2, 1), (3, 3, 1), (2, 1, 1)), ("A", "B"), 2),
     ],
 )
-def test_calculate_obj_value(containers, items, points_seq, obj_val):
-    containers = {f"cont-{i}": {"W": c[0], "L": c[1]} for i, c in enumerate(containers)}
-    items = {f"i-{i}": {"w": w, "l": l} for i, (w, l) in enumerate(items)}
+def test_calculate_util(containers, items, points_seq, obj_val):
+    containers = {f"cont-{i}": {"W": c[0], "L": c[1], "H": c[2]} for i, c in enumerate(containers)}
+    items = {f"i-{i}": {"w": w, "l": l, "h": h} for i, (w, l, h) in enumerate(items)}
     prob = HyperPack(containers=containers, items=items)
     prob._potential_points_strategy = points_seq
     prob.solve(debug=True)
@@ -27,9 +27,9 @@ def test_calculate_obj_value(containers, items, points_seq, obj_val):
 
 
 def test_deepcopy():
-    items = ((2, 3), (12, 3), (12, 14), (1, 1), (4, 6), (7, 9), (1, 2))
-    containers = {"cont-0": {"W": 55, "L": 55}}
-    items = {f"i-{i}": {"w": w, "l": l} for i, (w, l) in enumerate(items)}
+    items = ((2, 3, 1), (12, 3, 4), (12, 14, 12), (1, 1, 2), (4, 6, 7), (7, 9, 5), (1, 2, 3))
+    containers = {"cont-0": {"W": 55, "L": 55, "H": 55}}
+    items = {f"i-{i}": {"w": w, "l": l, "h": h} for i, (w, l, h) in enumerate(items)}
     prob = HyperPack(containers=containers, items=items)
 
     items_copy = prob.items.deepcopy()

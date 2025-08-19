@@ -10,8 +10,8 @@ LIB_PATH = Path(os.getcwd())
 @pytest.fixture
 def test_data():
     return {
-        "items": {"test_id": {"w": 10, "l": 10}},
-        "containers": {"cont_id": {"W": 100, "L": 100}},
+        "items": {"test_id": {"w": 10, "l": 10, "h": 10}},
+        "containers": {"cont_id": {"W": 100, "L": 100, "H": 100}},
     }
 
 

@@ -6,8 +6,8 @@ import pytest
 from hyperpack import FigureExportError, HyperPack
 
 PROBLEM_DATA = (
-    ((1, 2), (3, 1), (3, 3)),
-    ((1, 2), (3, 1), (2, 2)),
+    ((1, 2, 1), (3, 1, 2), (3, 3, 1)),
+    ((1, 2, 5), (3, 1, 1), (2, 2, 6)),
     ("B",),
 )
 
@@ -88,10 +88,10 @@ def test_figure_exportation__no_file_name(figure_settings, request):
     file_name = settings["figure"]["export"].get("file_name", "PlotlyGraph")
 
     containers = {
-        f"cont-{i}": {"W": container[0], "L": container[1]}
+        f"cont-{i}": {"W": container[0], "L": container[1], "H": container[2]}
         for i, container in enumerate(containers)
     }
-    items = {f"i-{i}": {"w": w, "l": l} for i, (w, l) in enumerate(items)}
+    items = {f"i-{i}": {"w": w, "l": l, "h": h} for i, (w, l, h) in enumerate(items)}
 
     prob = HyperPack(containers=containers, items=items, settings=settings)
     prob.potential_points_strategy = points_seq
@@ -184,10 +184,10 @@ def test_figure_exportation__file_name(figure_settings, request):
     file_name = settings["figure"]["export"].get("file_name", "PlotlyGraph")
 
     containers = {
-        f"cont-{i}": {"W": container[0], "L": container[1]}
+        f"cont-{i}": {"W": container[0], "L": container[1], "H": container[2]}
         for i, container in enumerate(containers)
     }
-    items = {f"i-{i}": {"w": w, "l": l} for i, (w, l) in enumerate(items)}
+    items = {f"i-{i}": {"w": w, "l": l, "h": h} for i, (w, l, h) in enumerate(items)}
 
     prob = HyperPack(containers=containers, items=items, settings=settings)
     prob.potential_points_strategy = points_seq

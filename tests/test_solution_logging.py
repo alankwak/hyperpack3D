@@ -15,35 +15,35 @@ DEFAULT_POTENTIAL_POINTS_STRATEGY = HyperPack.DEFAULT_POTENTIAL_POINTS_STRATEGY
     "containers,items,points_seq,solution_log_vars",
     [
         (
-            ((2, 3), (2, 2)),
-            ((2, 3), (1, 1)),
+            ((2, 3, 1), (2, 2, 1)),
+            ((2, 3, 1), (1, 1, 1)),
             ("A", "B"),
             {
                 "prec_items_stored": 100,
                 "best_strategy": ("A", "B"),
-                "containers_vars": (("cont-0", 2, 3, 100), ("cont-1", 2, 2, 25)),
+                "containers_vars": (("cont-0", 2, 3, 1, 100), ("cont-1", 2, 2, 1, 25)),
                 "remaining_items": [],
             },
         ),
         (
-            ((2, 3),),
-            ((3, 3),),
+            ((2, 3, 1),),
+            ((3, 3, 1),),
             ("A", "B"),
             {
                 "prec_items_stored": 0,
                 "best_strategy": ("A", "B"),
-                "containers_vars": (("cont-0", 2, 3, 0),),
+                "containers_vars": (("cont-0", 2, 3, 1, 0),),
                 "remaining_items": ["i-0"],
             },
         ),
         (
-            ((2, 4), (3, 3)),
-            ((2, 2), (3, 3), (1, 4)),
+            ((2, 4, 1), (3, 3, 1)),
+            ((2, 2, 1), (3, 3, 1), (1, 4, 1)),
             ("A", "B"),
             {
                 "prec_items_stored": 66.6667,
                 "best_strategy": ("A", "B"),
-                "containers_vars": (("cont-0", 2, 4, 50), ("cont-1", 3, 3, 100)),
+                "containers_vars": (("cont-0", 2, 4, 1, 50), ("cont-1", 3, 3, 1, 100)),
                 "remaining_items": ["i-2"],
             },
         ),
@@ -51,8 +51,8 @@ DEFAULT_POTENTIAL_POINTS_STRATEGY = HyperPack.DEFAULT_POTENTIAL_POINTS_STRATEGY
 )
 def test_log_solution(containers, items, points_seq, solution_log_vars):
     settings = {"workers_num": 1}
-    containers = {f"cont-{i}": {"W": c[0], "L": c[1]} for i, c in enumerate(containers)}
-    items = {f"i-{i}": {"w": w, "l": l} for i, (w, l) in enumerate(items)}
+    containers = {f"cont-{i}": {"W": c[0], "L": c[1], "H": c[2]} for i, c in enumerate(containers)}
+    items = {f"i-{i}": {"w": w, "l": l, "h": h} for i, (w, l, h) in enumerate(items)}
     prob = HyperPack(containers=containers, items=items, settings=settings)
     prob._potential_points_strategy = points_seq
     prob.solve()
@@ -80,15 +80,15 @@ def test_log_solution_no_solution_found(caplog, test_data):
 
 
 def test_log_solution_emtpy_container_solution(caplog):
-    containers = {"cont_id": {"W": 1, "L": 1}}
-    items = {"test_id": {"w": 101, "l": 101}}
+    containers = {"cont_id": {"W": 1, "L": 1, "H": 1}}
+    items = {"test_id": {"w": 101, "l": 101, "h": 101}}
     prob = HyperPack(containers=containers, items=items)
     prob.solve()
 
     solution_log_vars = {
         "prec_items_stored": 0,
         "best_strategy": HyperPack.DEFAULT_POTENTIAL_POINTS_STRATEGY,
-        "containers_vars": (("cont_id", 1, 1, 0),),
+        "containers_vars": (("cont_id", 1, 1, 1, 0),),
         "remaining_items": ["test_id"],
     }
 

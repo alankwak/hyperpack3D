@@ -614,7 +614,6 @@ class HyperPack(
         # until stopping criteria are met
 
         strategies = self.get_strategies(_exhaustive=_exhaustive)
-        print(strategies[0])
 
         self.solution, self.obj_val_per_container, self.best_strategy = (
             self._single_process_hypersearch(strategies, throttle)
