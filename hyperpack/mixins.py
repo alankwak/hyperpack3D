@@ -61,7 +61,7 @@ class PointGenerationMixin:
 
     # % --------- construction heuristic methods ----------
 
-    def _check_3d_fitting(self, W, L, H, Xo, Yo, Zo, w, l, h, current_items, requires_support=False, support_ratio=0.75, xy_planes=None) -> bool:
+    def _check_3d_fitting(self, W, L, H, Xo, Yo, Zo, w, l, h, current_items, requires_support=False, support_ratio=0.1, xy_planes=None) -> bool:
         """
         Checks if the item with coordinates (Xo, Yo, Zo)
         and dimensions (w, l, h) fits without colliding with any
@@ -151,212 +151,68 @@ class PointGenerationMixin:
 
         return True
 
-    def _generate_3d_points(
-        self, container, xy_planes, xz_planes, yz_planes, potential_points, Xo, Yo, Zo, w, l, h, debug=False
-    ) -> None:
-        x, y, z = 0, 1, 2
-        A = (Xo, Yo + l, Zo)
-        B = (Xo + w, Yo, Zo)
-        C = (Xo, Yo, Zo + h)
+    # In mixins.py, replace the entire _generate_3d_points method with this:
+    def _generate_3d_points(self, container, xy_planes, xz_planes, yz_planes, potential_points, Xo, Yo, Zo, w, l, h, debug=False):
+        """
+        Generates a rich set of potential points from the corners of the newly placed item,
+        including projections and points in concave corners.
+        """
+        W, L, H = container["W"], container["L"], self._get_initial_container_height(container)
 
-        L, W, H = container["L"], container["W"], container["H"]
-        append_A = False
-        append_B = False
-        prohibit_A__and_E = False
-        prohibit_B__and_F = False
+        # Define the 8 corners of the newly placed box
+        corners = [
+            (Xo + w, Yo, Zo), (Xo, Yo + l, Zo), (Xo, Yo, Zo + h),
+        ]
 
-        xz_less_than = [y_coord for y_coord in xz_planes if y_coord < Yo]
-        yz_less_than = [x_coord for x_coord in yz_planes if x_coord < Xo]
-        xy_below = [z_coord for z_coord in xy_planes if z_coord < Zo]
+        for p in corners:
+            px, py, pz = p
 
-        # A point
-        if A[y] < L and A[z] == 0:
-            # A point on the bottom of the bin and within the bin length
-            if debug:
-                logger.debug(f"\tgen point A --> {A}")
-            potential_points["A"].append(A)
-        elif A[y] < L:
-            # A point not on the bottom of the bin
-            planes = xy_planes.get(A[z], [])
-            for plane in planes:
-                if plane[0][0] <= A[x] and plane[1][0] > A[x] and plane[0][1] <= A[y] and plane[1][1] > A[y]:
-                    # if plane directly encompasses A from below
-                    append_A = True
-                    break
-                # elif not prohibit_A__and_E and plane[1][1] == A[y] and plane[0][0] <= A[x] and plane[1][0] > A[x]:
-                #     # if plane's Y ends directly under A
-                #     prohibit_A__and_E = True
-            if append_A:
-                if debug:
-                    logger.debug(f"\tgen point A --> {A}")
-                potential_points["A"].append(A)
+            # Rule 1: Add points that are on the "positive" shell of the new box
+            # These become primary points for building outwards and upwards.
+            if px == Xo + w and py < L and pz < H: potential_points["B"].appendleft((px, py, pz))
+            if py == Yo + l and px < W and pz < H: potential_points["A"].appendleft((px, py, pz))
+            if pz == Zo + h and px < W and py < L: potential_points["C"].appendleft((px, py, pz))
 
-        # B point
-        if B[x] < W and B[z] == 0:
-            # B point on the bottom of the bin and within the bin length
-            if debug:
-                logger.debug(f"\tgen point B --> {B}")
-            potential_points["B"].append(B)
-        elif B[x] < W:
-            # B point not on the bottom of the bin
-            planes = xy_planes.get(B[z], [])
-            for plane in planes:
-                if plane[0][0] <= B[x] and plane[1][0] > B[x] and plane[0][1] <= B[y] and plane[1][1] > B[y]:
-                    # if plane directly encompasses B from below
-                    append_B = True
-                    break
-                # elif not prohibit_B__and_F and plane[1][0] == B[x] and plane[0][1] <= B[y] and plane[1][1] > B[y]:
-                #     # if plane's X ends directly under B
-                #     prohibit_B__and_F = True
-            if append_B:
-                if debug:
-                    logger.debug(f"\tgen point B --> {B}")
-                potential_points["B"].append(B)
+            # Rule 2: Create projection points by searching for support
+            # This helps find stable ground in gaps and canyons.
 
-        # A'x point (x-projection)
-        append_A_x = False
-        if append_A and yz_less_than != []:
-            block = False
-            for plane in yz_planes.get(Xo, []):
-                if plane[0][0] <= A[y] and plane[1][0] > A[y] and plane[0][1] <= A[z] and plane[1][1] > A[z]:
-                    # if plane directly encompasses A
-                    block = True
-                    break
-            if not block:
-                for x_coord in yz_less_than[-1::-1]:
-                    planes = yz_planes.get(x_coord, [])
-                    for plane in planes:
-                        if plane[0][0] <= A[y] and plane[1][0] > A[y] and plane[0][1] <= A[z] and plane[1][1] > A[z]:
-                            A_x = (x_coord, A[y], A[z])
-                            if debug:
-                                logger.debug(f"\tgen point A'x --> {A_x}")
-                            potential_points["A_x"].append(A_x)
-                            append_A_x = False
-                            break
-                    if append_A_x:
-                        break
-        
-        # B'y point (y-projection)
-        append_B_y = False
-        if append_B and xz_less_than != []:
-            block = False
-            for plane in xz_planes.get(Yo, []):
-                if plane[0][0] <= B[x] and plane[1][0] > B[x] and plane[0][1] <= B[z] and plane[1][1] > B[z]:
-                    # if plane directly encompasses B
-                    block = True
-                    break
-            if not block:
-                for y_coord in xz_less_than[-1::-1]:
-                    planes = xz_planes.get(y_coord, [])
-                    for plane in planes:
-                        if plane[0][0] <= B[x] and plane[1][0] > B[x] and plane[0][1] <= B[z] and plane[1][1] > B[z]:
-                            B_y = (B[x], y_coord, B[z])
-                            if debug:
-                                logger.debug(f"\tgen point B'y --> {B_y}")
-                            potential_points["B_y"].append(B_y)
-                            append_B_y = True
-                            break
-                    if append_B_y:
-                        break
+            # Project down (-Z)
+            if pz > 0:
+                support_z = 0
+                for z_level in sorted(xy_planes.keys(), reverse=True):
+                    if z_level < pz:
+                        for plane in xy_planes[z_level]:
+                            if plane[0][0] <= px < plane[1][0] and plane[0][1] <= py < plane[1][1]:
+                                support_z = z_level
+                                break
+                    if support_z > 0: break
+                if support_z > 0:
+                    potential_points["A_"].appendleft((px, py, support_z))
 
-        # A' point (z-projection)
-        append_A_ = False
-        if not append_A and not prohibit_A__and_E and A[y] < L and xy_below != []:
-            # A' point
-            for z_coord in xy_below[-1::-1]:
-                planes = xy_planes.get(z_coord, [])
-                for plane in planes:
-                    if plane[0][0] <= A[x] and plane[1][0] > A[x] and plane[0][1] <= A[y] and plane[1][1] > A[y]:
-                        A_ = (Xo, A[y], z_coord)
-                        if debug:
-                            logger.debug(f"\tgen point A' --> {A_}")
-                        potential_points["A_"].append(A_)
-                        append_A_ = True
-                        break
-                if append_A_:
-                    break
-        # B' point (z-projection)
-        append_B_ = False
-        if not append_B and not prohibit_B__and_F and B[x] < W and xy_below != []:
-            # B' point
-            for z_coord in xy_below[-1::-1]:
-                planes = xy_planes.get(z_coord, [])
-                for plane in planes:
-                    if plane[0][0] <= B[x] and plane[1][0] > B[x] and plane[0][1] <= B[y] and plane[1][1] > B[y]:
-                        B_ = (B[x], Yo, z_coord)
-                        if debug:
-                            logger.debug(f"\tgen point B' --> {B_}")
-                        potential_points["B_"].append(B_)
-                        append_B_ = True
-                        break
-                if append_B_:
-                    break
-        
-        # C point
-        append_C = False
-        if C[z] < H and C[y] == 0 and C[x] == 0:
-            if debug:
-                logger.debug(f"\tgen point C --> {C}")
-            potential_points["C"].append(C)
-            append_C = True
-        elif C[z] < H:
-            planes = xz_planes.get(Yo, [])
-            xz_check = False
-            for plane in planes:
-                if plane[0][0] <= C[x] and plane[1][0] > C[x] and plane[0][1] <= C[z] and plane[1][1] > C[z]:
-                    # if plane directly encompasses C
-                    xz_check = True
-                    break
-            if xz_check:
-                planes = yz_planes.get(Xo, [])
-                for plane in planes:
-                    if plane[0][0] <= C[y] and plane[1][0] > C[y] and plane[0][1] <= C[z] and plane[1][1] > C[z]:
-                        # if plane directly encompasses C
-                        if debug:
-                            logger.debug(f"\tgen point C --> {C}")
-                        potential_points["C"].append(C)
-                        append_C = True
-                        break
-    
-        # C'y point (y-projection)
-        append_C_y = False
-        if not append_C and C[z] < H and xz_less_than != []:
-            # C'y point
-            for y_coord in xz_less_than[-1::-1]:
-                planes = xz_planes.get(y_coord, [])
-                for plane in planes:
-                    if plane[0][0] <= C[x] and plane[1][0] > C[x] and plane[0][1] <= C[z] and plane[1][1] > C[z]:
-                        C_y = (C[x], y_coord, C[z])
-                        if debug:
-                            logger.debug(f"\tgen point C'y --> {C_y}")
-                        potential_points["C_y"].append(C_y)
-                        append_C_y = True
-                        break
-                if append_C_y:
-                    break
-        
-        # C'x point (x-projection)
-        append_C_x = False
-        if not append_C and C[z] < H and yz_less_than != []:
-            # C'x point  
-            for x_coord in yz_less_than[-1::-1]:
-                planes = yz_planes.get(x_coord, [])
-                for plane in planes:
-                    if plane[0][0] <= C[y] and plane[1][0] > C[y] and plane[0][1] <= C[z] and plane[1][1] > C[z]:
-                        C_x = (x_coord, C[y], C[z])
-                        if debug:
-                            logger.debug(f"\tgen point C'x --> {C_x}")
-                        potential_points["C_x"].append(C_x)
-                        append_C_x = True
-                        break
-                if append_C_x:
-                    break
+            # Project backward (-Y)
+            if py > 0:
+                support_y = 0
+                for y_level in sorted(xz_planes.keys(), reverse=True):
+                    if y_level < py:
+                        for plane in xz_planes[y_level]:
+                            if plane[0][0] <= px < plane[1][0] and plane[0][1] <= pz < plane[1][1]:
+                                support_y = y_level
+                                break
+                    if support_y > 0: break
+                if support_y > 0:
+                    potential_points["A_x"].appendleft((px, support_y, pz))
 
-        # C'' point (when C is not in a corner)
-        if C[z] < H and not append_C:
-            if(debug):
-                potential_points["C__"].append(C)
-                logger.debug(f"\tgen point C'' --> {C}")
+            if px > 0:
+                support_x = 0
+                for x_level in sorted(yz_planes.keys(), reverse=True):
+                    if x_level < px:
+                        for plane in yz_planes[x_level]:
+                            if plane[0][0] <= py < plane[1][0] and plane[0][1] <= pz < plane[1][1]:
+                                support_x = x_level
+                                break
+                    if support_x > 0: break
+                if support_x > 0:
+                    potential_points["B_y"].appendleft((support_x, py, pz))
 
     def _get_current_point(self, potential_points) -> tuple:
         for pclass in self._potential_points_strategy:
@@ -437,7 +293,68 @@ class PointGenerationMixin:
     ):
         return obj_value + (w * l * h) / (W * L * H)
 
-    def _construct_solution(self, container, items, debug=False) -> tuple:
+    # In mixins.py, add this new method inside PointGenerationMixin
+    def _find_placement_in_container(self, item, item_id, container, container_state):
+        """
+        Tries to find a valid placement for a SINGLE item in a given container.
+        
+        Args:
+            item (dict): The item to place.
+            item_id (str): The ID of the item.
+            container (dict): The container's dimensions.
+            container_state (dict): The current state of the container, including
+                                    placed_items, potential_points, and planes.
+
+        Returns:
+            A tuple (found_placement, new_container_state) where found_placement
+            is a boolean and new_container_state is the updated state if found.
+        """
+        W, L, H = container["W"], container["L"], self._get_initial_container_height(container)
+        
+        # Create a copy of the state to modify, so we don't alter the original if placement fails
+        temp_state = deepcopy(container_state)
+        potential_points = temp_state['potential_points']
+
+        # We need to check every potential point, not just the first one
+        points_to_try = []
+        for pclass in self._potential_points_strategy:
+            points_to_try.extend(potential_points[pclass])
+        
+        # Add the origin as a fallback if no other points exist
+        if not points_to_try:
+            points_to_try.append((0,0,0))
+
+        for point in points_to_try:
+            Xo, Yo, Zo = point
+            
+            # Try all 6 orientations
+            for rotation_state in range(6):
+                w, l, h = item['w'], item['l'], item['h']
+                if rotation_state == 1: w, l, h = l, w, h
+                elif rotation_state == 2: w, l, h = w, h, l
+                elif rotation_state == 3: w, l, h = h, w, l
+                elif rotation_state == 4: w, l, h = l, h, w
+                elif rotation_state == 5: w, l, h = h, l, w
+
+                # Use the 3D fitting check
+                if self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, temp_state['placed_items'], requires_support=True, xy_planes=temp_state['xy_planes']):
+                    # --- Success! A placement was found. ---
+                    
+                    # Update the item with its position and add it to the state
+                    placed_item = item.copy()
+                    placed_item.update({"Xo": Xo, "Yo": Yo, "Zo": Zo, "rotation_state": rotation_state})
+                    temp_state['placed_items'][item_id] = placed_item
+                    
+                    # Generate new points and planes based on this placement
+                    self._generate_3d_points(container, temp_state['xy_planes'], temp_state['xz_planes'], temp_state['yz_planes'], temp_state['potential_points'], Xo, Yo, Zo, w, l, h)
+                    self._append_planes(temp_state['xy_planes'], temp_state['xz_planes'], temp_state['yz_planes'], Xo, Yo, Zo, w, l, h)
+                    
+                    return True, temp_state # Return success and the new state
+
+        # If we get here, no placement was found for this item in this container
+        return False, container_state
+
+    # def _construct_solution(self, container, items, debug=False) -> tuple:
         """
         Point generation construction heuristic
         for solving single container problem instance.
@@ -608,59 +525,113 @@ class PointGenerationMixin:
             ]
         return solution
 
+    # In mixins.py, replace the ENTIRE _solve method with this new First Fit version:
     def _solve(self, sequence=None, debug=False) -> None:
         """
-        Solves for all the containers, using the
-        `point generation construction heuristic
-        <https://github.com/AlkiviadisAleiferis/hyperpack-theory/>`_.
-
-        **OPERATION**
-            Populates ``solution`` with solution found for every container.
-
-            Populates ``obj_val_per_container`` with the utilization \
-            of every container.
-
-        **PARAMETERS**
-            ``sequence`` : the sequence of ids to create the items to solve for. \
-            If None, ``items`` will be used. Items used for solving are deepcopied \
-            from ``items`` with corresponding sequence.
-
-            ``debug`` : If True, debuging mode will be enabled, usefull \
-            only for developing.
-
-        **RETURNS**
-            ``solution`` , ``obj_val_per_container``
-
-        **NOTES**
-            Solution is deterministic, and solely dependent on these factors:
-
-                ``potential_points_strategy`` attribute for the potential points strategy.
-
-                ``items_sequence`` **sequence** of the items ids.
+        Solves for all containers using a First Fit heuristic.
+        For each item, it tries to place it in the first container where it fits.
         """
-        # deepcopying is done cause items will be removed
-        # from items pool after each container is solved
-        # self._items shouldn't have same ids with items
         if sequence is None:
             items = self._items.deepcopy()
         else:
             items = self._items.deepcopy(sequence)
 
-        obj_val_per_container = {}
-        solution = {}
-
+        # Initialize states for all containers
+        container_states = {}
         for cont_id in self._containers:
-            solution[cont_id] = {}
-            obj_val_per_container[cont_id] = 0
-            if items == {}:
-                continue
-            items, util, current_solution = self._construct_solution(
-                container=self._containers[cont_id], items=items, debug=debug
-            )
-            obj_val_per_container[cont_id] = util
-            solution[cont_id] = self._get_container_solution(current_solution)
+            W = self._containers[cont_id]['W']
+            L = self._containers[cont_id]['L']
+            H = self._containers[cont_id]['H']
+            container_states[cont_id] = {
+                'placed_items': {},
+                'potential_points': self._get_initial_potential_points(),
+                'xy_planes': self.get_initial_xy_planes(W, L, H),
+                'xz_planes': self.get_initial_xz_planes(W, L, H),
+                'yz_planes': self.get_initial_yz_planes(W, L, H),
+            }
+
+        # Main First Fit Loop: Iterate through ITEMS first
+        for item_id, item in items.items():
+            # Then, for each item, iterate through CONTAINERS
+            for cont_id in self._containers:
+                
+                # Try to place the current item in the current container
+                was_placed, new_state = self._find_placement_in_container(
+                    item, item_id, self._containers[cont_id], container_states[cont_id]
+                )
+
+                if was_placed:
+                    # If placed, update the container's state and move to the NEXT ITEM
+                    container_states[cont_id] = new_state
+                    break # Stop searching for a container for this item
+        
+        # Post-processing: Convert final states into the required solution format
+        solution = {}
+        obj_val_per_container = {}
+        for cont_id in self._containers:
+            placed_items_in_cont = container_states[cont_id]['placed_items']
+            solution[cont_id] = self._get_container_solution(placed_items_in_cont)
+            
+            # Calculate final utilization for the objective function
+            total_items_vol = sum(d['w'] * d['l'] * d['h'] for d in placed_items_in_cont.values())
+            total_cont_vol = self._containers[cont_id]['W'] * self._containers[cont_id]['L'] * self._containers[cont_id]['H']
+            obj_val_per_container[cont_id] = total_items_vol / total_cont_vol if total_cont_vol > 0 else 0
 
         return solution, obj_val_per_container
+
+    # def _solve(self, sequence=None, debug=False) -> None:
+    #     """
+    #     Solves for all the containers, using the
+    #     `point generation construction heuristic
+    #     <https://github.com/AlkiviadisAleiferis/hyperpack-theory/>`_.
+
+    #     **OPERATION**
+    #         Populates ``solution`` with solution found for every container.
+
+    #         Populates ``obj_val_per_container`` with the utilization \
+    #         of every container.
+
+    #     **PARAMETERS**
+    #         ``sequence`` : the sequence of ids to create the items to solve for. \
+    #         If None, ``items`` will be used. Items used for solving are deepcopied \
+    #         from ``items`` with corresponding sequence.
+
+    #         ``debug`` : If True, debuging mode will be enabled, usefull \
+    #         only for developing.
+
+    #     **RETURNS**
+    #         ``solution`` , ``obj_val_per_container``
+
+    #     **NOTES**
+    #         Solution is deterministic, and solely dependent on these factors:
+
+    #             ``potential_points_strategy`` attribute for the potential points strategy.
+
+    #             ``items_sequence`` **sequence** of the items ids.
+    #     """
+    #     # deepcopying is done cause items will be removed
+    #     # from items pool after each container is solved
+    #     # self._items shouldn't have same ids with items
+    #     if sequence is None:
+    #         items = self._items.deepcopy()
+    #     else:
+    #         items = self._items.deepcopy(sequence)
+
+    #     obj_val_per_container = {}
+    #     solution = {}
+
+    #     for cont_id in self._containers:
+    #         solution[cont_id] = {}
+    #         obj_val_per_container[cont_id] = 0
+    #         if items == {}:
+    #             continue
+    #         items, util, current_solution = self._construct_solution(
+    #             container=self._containers[cont_id], items=items, debug=debug
+    #         )
+    #         obj_val_per_container[cont_id] = util
+    #         solution[cont_id] = self._get_container_solution(current_solution)
+
+    #     return solution, obj_val_per_container
 
 
 class SolutionLoggingMixin:

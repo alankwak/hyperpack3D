@@ -48,7 +48,7 @@ items = {
     #     "h": 10
     # },
 }
-for i in range(1, 30):
+for i in range(1, 200):
     items.update(
         [(f"item{i}", {
             "w": random.randint(1, 20),
@@ -63,6 +63,26 @@ containers = {
         'H': H
     },
     "container2": {
+        'W': 80,
+        'L': 100,
+        'H': 100
+    },
+    "container3": {
+        'W': 40,
+        'L': 50,
+        'H': 50
+    },
+    "container4": {
+        'W': 40,
+        'L': 50,
+        'H': 50
+    },
+    "container5": {
+        'W': 40,
+        'L': 50,
+        'H': 50
+    },
+    "container6": {
         'W': 40,
         'L': 50,
         'H': 50
