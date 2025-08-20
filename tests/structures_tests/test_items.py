@@ -15,7 +15,7 @@ from hyperpack import Dimensions, DimensionsError, HyperPack, Items, ItemsError
         (1, ItemsError.TYPE, ItemsError),
         (1.2, ItemsError.TYPE, ItemsError),
         # item id type
-        ({0: {"w": 10, "l": 10}}, ItemsError.ID_TYPE, ItemsError),
+        ({0: {"w": 10, "l": 10, "h": 10}}, ItemsError.ID_TYPE, ItemsError),
         # items missing
         ({"item_id": {}}, DimensionsError.DIMENSIONS_MISSING, DimensionsError),
         ({"item_id": None}, DimensionsError.DIMENSIONS_MISSING, DimensionsError),
@@ -26,34 +26,53 @@ from hyperpack import Dimensions, DimensionsError, HyperPack, Items, ItemsError
         # wrong dimension keys
         ({"item_id": {"w": 10}}, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
         ({"item_id": {"l": 10}}, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
+        ({"item_id": {"h": 10}}, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
+        ({"item_id": {"w": 10, "l": 10}}, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
+        ({"item_id": {"w": 10, "h": 10}}, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
+        ({"item_id": {"l": 10, "h": 10}}, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
         # width/length
         (
-            {"item_id": {"w": "10", "l": 10}},
+            {"item_id": {"w": "10", "l": 10, "h": 10}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"item_id": {"w": 10, "l": "10"}},
+            {"item_id": {"w": 10, "l": "10", "h": 10}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"item_id": {"w": 0, "l": 10}},
+            {"item_id": {"w": 10, "l": 10, "h": "10"}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"item_id": {"w": 10.1, "l": 0}},
+            {"item_id": {"w": 0, "l": 10, "h": 10}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"item_id": {"w": 10, "l": 1.1}},
+            {"item_id": {"w": 10.1, "l": 0, "h": 10}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"item_id": {"w": 10, "l": 0}},
+            {"item_id": {"w": 10, "l": 1.1, "h": 10}},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            {"item_id": {"w": 10, "l": 0, "h": 10}},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            {"item_id": {"w": 10, "l": 10, "h": 10.1}},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            {"item_id": {"w": 10, "l": 10, "h": 0}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
@@ -62,7 +81,7 @@ from hyperpack import Dimensions, DimensionsError, HyperPack, Items, ItemsError
 def test_items_validation_assignment(items, error_msg, error, request):
     caplog = request.getfixturevalue("caplog")
     test_data = request.getfixturevalue("test_data")
-    containers = {"cont_id": {"W": 100, "L": 100}}
+    containers = {"cont_id": {"W": 100, "L": 100, "H": 100}}
     with pytest.raises(error) as exc_info:
         prob = HyperPack(containers=test_data["containers"], items=items)
     assert str(exc_info.value) == error_msg
@@ -85,28 +104,28 @@ def test_items_validation_assignment(items, error_msg, error, request):
         (
             "item_id",
             0,
-            {"w": 100, "l": -100},
+            {"w": 100, "l": -100, "h": 100},
             ItemsError.ID_TYPE,
             ItemsError,
         ),
         (
             "item_id",
             None,
-            {"w": 100, "L": -100},
+            {"w": 100, "L": -100, "h": 100},
             ItemsError.ID_TYPE,
             ItemsError,
         ),
         (
             "item_id",
             [1],
-            {"w": 100, "l": 100},
+            {"w": 100, "l": 100, "h": 100},
             ItemsError.ID_TYPE,
             ItemsError,
         ),
         (
             "item_id",
             "item_id",
-            {"l": 100, "w": 100, "f": 1},
+            {"l": 100, "w": 100, "h": 100, "f": 1},
             DimensionsError.DIMENSIONS_KEYS,
             DimensionsError,
         ),
@@ -134,63 +153,98 @@ def test_items_validation_assignment(items, error_msg, error, request):
         (
             "item_id",
             "item_id",
-            {"w": 100, "l": -100},
+            {"l": 100, "w": 100, "H": 100},
+            DimensionsError.DIMENSIONS_KEYS,
+            DimensionsError,
+        ),
+        (
+            "item_id",
+            "item_id",
+            {"w": 100, "l": -100, "h": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "item_id",
             "item_id",
-            {"w": None, "l": 100},
+            {"w": None, "l": 100, "h": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "item_id",
             "item_id",
-            {"w": 100, "l": None},
+            {"w": 100, "l": None, "h": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "item_id",
             "item_id",
-            {"w": "100", "l": 100},
+            {"w": 100, "l": 100, "h": None},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "item_id",
             "item_id",
-            {"w": 100, "l": "100"},
+            {"w": "100", "l": 100, "h": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "item_id",
             "item_id",
-            {"w": 100.1, "l": 100},
+            {"w": 100, "l": "100", "h": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "item_id",
             "item_id",
-            {"w": 100, "l": 100.1},
+            {"w": 100, "l": 100, "h": "100"},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "item_id",
             "item_id",
-            {"w": 100, "l": -100},
+            {"w": 100.1, "l": 100, "h": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "item_id",
             "item_id",
-            {"w": -100, "l": 100},
+            {"w": 100, "l": 100.1, "h": 100},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            "item_id",
+            "item_id",
+            {"w": 100, "l": 100, "h": 100.1},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            "item_id",
+            "item_id",
+            {"w": 100, "l": -100, "h": 100},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            "item_id",
+            "item_id",
+            {"w": -100, "l": 100, "h": 100},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            "item_id",
+            "item_id",
+            {"w": 100, "l": 100, "h": -100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
@@ -202,6 +256,7 @@ def test_items_validation_assignment(items, error_msg, error, request):
         ("dimension", "w", [-1], DimensionsError.DIMENSION_VALUE, DimensionsError),
         ("dimension", "w", {"a": -1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
         ("dimension", "w", {-1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "W", 2, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
         # set items[item_id]["l"] = ...
         ("dimension", "l", 1.1, DimensionsError.DIMENSION_VALUE, DimensionsError),
         ("dimension", "l", -1, DimensionsError.DIMENSION_VALUE, DimensionsError),
@@ -210,12 +265,20 @@ def test_items_validation_assignment(items, error_msg, error, request):
         ("dimension", "l", {"a": -1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
         ("dimension", "l", {-1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
         ("dimension", "L", 2, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
+        # set items[item_id]["h"] = ...
+        ("dimension", "h", 1.1, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "h", -1, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "h", None, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "h", [-1], DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "h", {"a": -1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "h", {-1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "H", 2, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
     ],
 )
 def test_items_setitem(key_type, key, item, error_msg, error, request):
     test_data = request.getfixturevalue("test_data")
     containers = test_data["containers"]
-    items = {"item_id": {"w": 10, "l": 10}}
+    items = {"item_id": {"w": 10, "l": 10, "h": 10}}
     caplog = request.getfixturevalue("caplog")
     prob = HyperPack(containers=containers, items=items)
 
@@ -241,8 +304,8 @@ def test_items_setitem(key_type, key, item, error_msg, error, request):
 
 
 def test_items_deletion(caplog):
-    items = {"test_id": {"w": 10, "l": 10}}
-    containers = {"cont_id": {"W": 100, "L": 100}}
+    items = {"test_id": {"w": 10, "l": 10, "h": 10}}
+    containers = {"cont_id": {"W": 100, "L": 100, "H": 100}}
     prob = HyperPack(containers=containers, items=items)
 
     # deleting the whole items structure error
@@ -259,7 +322,7 @@ def test_items_deletion(caplog):
     assert error_msg in caplog.text
 
     # safe to delete item
-    prob.items["test_id_2"] = {"w": 100, "l": 100}
+    prob.items["test_id_2"] = {"w": 100, "l": 100, "h": 100}
     prob.solve()
     del prob.items["test_id"]
 
@@ -270,48 +333,54 @@ def test_items_deletion(caplog):
 
 
 def test_items_validation_ok():
-    containers = {"cont_id": {"W": 1001, "L": 1001}}
-    items = {"test_id": {"w": 101, "l": 101}}
+    containers = {"cont_id": {"W": 1001, "L": 1001, "H": 1001}}
+    items = {"test_id": {"w": 101, "l": 101, "h": 101}}
     prob = HyperPack(containers=containers, items=items)
     assert prob.containers == containers
     assert prob.items == items
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 101, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 101, 101, 101]}}
 
-    items = {"test_id": {"w": 101, "l": 101}}
+    items = {"test_id": {"w": 101, "l": 101, "h": 101}}
     prob.items = items
     assert prob.containers == containers
     assert prob.items == items
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 101, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 101, 101, 101]}}
 
-    prob.items["test_id"] = {"w": 102, "l": 101}
+    prob.items["test_id"] = {"w": 102, "l": 101, "h": 100}
     assert prob.containers == containers
-    assert prob.items == {"test_id": {"w": 102, "l": 101}}
+    assert prob.items == {"test_id": {"w": 102, "l": 101, "h": 100}}
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 102, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 102, 101, 100]}}
 
     prob.items["test_id"]["w"] = 10
     assert prob.containers == containers
-    assert prob.items == {"test_id": {"w": 10, "l": 101}}
+    assert prob.items == {"test_id": {"w": 10, "l": 101, "h": 100}}
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 10, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 10, 101, 100]}}
 
     prob.items["test_id"]["l"] = 10
     assert prob.containers == containers
-    assert prob.items == {"test_id": {"w": 10, "l": 10}}
+    assert prob.items == {"test_id": {"w": 10, "l": 10, "h": 100}}
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 10, 10]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 10, 10, 100]}}
+
+    prob.items["test_id"]["h"] = 10
+    assert prob.containers == containers
+    assert prob.items == {"test_id": {"w": 10, "l": 10, "h": 10}}
+    prob.solve()
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 10, 10, 10]}}
 
 
 def test_items_assignment_resets_attributes():
-    containers = {"cont_id": {"W": 1001, "L": 1001}}
-    items = {"test_id": {"w": 101, "l": 101}}
+    containers = {"cont_id": {"W": 1001, "L": 1001, "H": 1001}}
+    items = {"test_id": {"w": 101, "l": 101, "h": 101}}
     prob = HyperPack(containers=containers, items=items)
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 101, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 101, 101, 101]}}
 
-    items = {"test_id": {"w": 101, "l": 101}}
+    items = {"test_id": {"w": 101, "l": 101, "h": 101}}
     prob.items = items
     assert prob.containers == containers
     assert prob.items == items
@@ -319,12 +388,12 @@ def test_items_assignment_resets_attributes():
     assert prob.obj_val_per_container == {}
 
     prob.solve()
-    prob.items["test_id"] = {"w": 102, "l": 101}
-    prob.items["test_id_2"] = {"w": 102, "l": 101}
+    prob.items["test_id"] = {"w": 102, "l": 101, "h": 100}
+    prob.items["test_id_2"] = {"w": 102, "l": 101, "h": 100}
     assert prob.containers == containers
     assert prob.items == {
-        "test_id": {"w": 102, "l": 101},
-        "test_id_2": {"w": 102, "l": 101},
+        "test_id": {"w": 102, "l": 101, "h": 100},
+        "test_id_2": {"w": 102, "l": 101, "h": 100},
     }
     assert prob.solution == {}
     assert prob.obj_val_per_container == {}
@@ -333,17 +402,23 @@ def test_items_assignment_resets_attributes():
     del prob.items["test_id_2"]
     assert prob.solution == {}
     assert prob.obj_val_per_container == {}
-    assert prob.items == {"test_id": {"w": 102, "l": 101}}
+    assert prob.items == {"test_id": {"w": 102, "l": 101, "h": 100}}
 
     prob.solve()
     prob.items["test_id"]["w"] = 10
     assert prob.containers == containers
-    assert prob.items == {"test_id": {"w": 10, "l": 101}}
+    assert prob.items == {"test_id": {"w": 10, "l": 101, "h": 100}}
     assert prob.solution == {}
     assert prob.obj_val_per_container == {}
 
     prob.solve()
     prob.items["test_id"]["l"] = 10
     assert prob.containers == containers
-    assert prob.items == {"test_id": {"w": 10, "l": 10}}
+    assert prob.items == {"test_id": {"w": 10, "l": 10, "h": 100}}
+    assert prob.solution == {}
+
+    prob.solve()
+    prob.items["test_id"]["h"] = 10
+    assert prob.containers == containers
+    assert prob.items == {"test_id": {"w": 10, "l": 10, "h": 10}}
     assert prob.solution == {}

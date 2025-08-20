@@ -33,7 +33,7 @@ from hyperpack import (
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": 100}},
+            {"cont_id": {"W": 100, "L": 100}},
             DimensionsError.DIMENSIONS_KEYS,
             DimensionsError,
         ),
@@ -43,65 +43,80 @@ from hyperpack import (
             DimensionsError,
         ),
         (
-            {"cont_id": {"l": 100, "W": 100}},
+            {"cont_id": {"l": 100, "W": 100, "H": 100}},
             DimensionsError.DIMENSIONS_KEYS,
             DimensionsError,
         ),
         # Dimensions W/L values
         (
-            {"cont_id": {"W": None, "L": 100}},
+            {"cont_id": {"W": None, "L": 100, "H": 100}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": [None], "L": 100}},
+            {"cont_id": {"W": [None], "L": 100, "H": 100}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": None, "L": {"a": 100}}},
+            {"cont_id": {"W": None, "L": {"a": 100}, "H": 100}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": 100, "L": None}},
+            {"cont_id": {"W": 100, "L": None, "H": 100}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": "100", "L": 100}},
+            {"cont_id": {"W": "100", "L": 100, "H": 100}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": 100, "L": "100"}},
+            {"cont_id": {"W": 100, "L": "100", "H": 100}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": 100.1, "L": 100}},
+            {"cont_id": {"W": 100, "L": 100, "H": "100"}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": 100, "L": 100.1}},
+            {"cont_id": {"W": 100.1, "L": 100, "H": 100}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": 100, "L": -100}},
+            {"cont_id": {"W": 100, "L": 100.1, "H": 100}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
-            {"cont_id": {"W": -100, "L": 100}},
+            {"cont_id": {"W": 100, "L": 100, "H": 100.2}},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            {"cont_id": {"W": 100, "L": -100, "H": 100}},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            {"cont_id": {"W": -100, "L": 100, "H": 100}},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            {"cont_id": {"W": 100, "L": 100, "H": 0}},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
     ],
 )
 def test_containers_validation_assignment(containers, error_msg, error, request):
-    items = {"test_id": {"w": 10, "l": 10}}
+    items = {"test_id": {"w": 10, "l": 10, "h": 10}}
     caplog = request.getfixturevalue("caplog")
     with pytest.raises(error) as exc_info:
         prob = HyperPack(containers=containers, items=items)
@@ -110,8 +125,8 @@ def test_containers_validation_assignment(containers, error_msg, error, request)
 
     # now tests for changing the _containers value
     # after instantiation
-    items = {"test_id": {"w": 10, "l": 10}}
-    proper_containers = {"cont_id": {"W": 100, "L": 100}}
+    items = {"test_id": {"w": 10, "l": 10, "h": 10}}
+    proper_containers = {"cont_id": {"W": 100, "L": 100, "H": 100}}
     prob = HyperPack(containers=proper_containers, items=items)
     caplog = request.getfixturevalue("caplog")
     with pytest.raises(error) as exc_info:
@@ -128,21 +143,21 @@ def test_containers_validation_assignment(containers, error_msg, error, request)
         (
             "container_id",
             0,
-            {"W": 100, "L": -100},
+            {"W": 100, "L": -100, "H": 100},
             ContainersError.ID_TYPE,
             ContainersError,
         ),
         (
             "container_id",
             None,
-            {"W": 100, "L": -100},
+            {"W": 100, "L": -100, "H": 100},
             ContainersError.ID_TYPE,
             ContainersError,
         ),
         (
             "container_id",
             [1],
-            {"W": 100, "L": -100},
+           {"W": 100, "L": -100, "H": 100},
             ContainersError.ID_TYPE,
             ContainersError,
         ),
@@ -163,77 +178,119 @@ def test_containers_validation_assignment(containers, error_msg, error, request)
         (
             "container_id",
             "cont_id",
-            {"w": 100, "L": 100},
+            {"H": 100},
             DimensionsError.DIMENSIONS_KEYS,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"l": 100, "W": 100},
+            {"w": 100, "L": 100, "H": 100},
             DimensionsError.DIMENSIONS_KEYS,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": 100.1, "L": 100},
+            {"l": 100, "W": 100, "H": 100},
+            DimensionsError.DIMENSIONS_KEYS,
+            DimensionsError,
+        ),
+        (
+            "container_id",
+            "cont_id",
+            {"h": 100, "W": 100, "L": 100},
+            DimensionsError.DIMENSIONS_KEYS,
+            DimensionsError,
+        ),
+        (
+            "container_id",
+            "cont_id",
+            {"W": 100.1, "L": 100, "H": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": 100, "L": 100.1},
+            {"W": 100, "L": 100.1, "H": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": 100, "L": -100},
+            {"W": 100, "L": 100, "H": 100.1},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": None, "L": 100},
+            {"W": 100, "L": -100, "H": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": 100, "L": None},
+            {"W": None, "L": 100, "H": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": "100", "L": 100},
+            {"W": 100, "L": None, "H": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": 100, "L": "100"},
+            {"W": 100, "L": 100, "H": None},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": 100, "L": -100},
+            {"W": "100", "L": 100, "H": 100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
         (
             "container_id",
             "cont_id",
-            {"W": -100, "L": 100},
+            {"W": 100, "L": "100", "H": 100},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            "container_id",
+            "cont_id",
+            {"W": 100, "L": 100, "H": "100"},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            "container_id",
+            "cont_id",
+            {"W": 100, "L": -100, "H": 100},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            "container_id",
+            "cont_id",
+            {"W": -100, "L": 100, "H": 100},
+            DimensionsError.DIMENSION_VALUE,
+            DimensionsError,
+        ),
+        (
+            "container_id",
+            "cont_id",
+            {"W": 100, "L": 100, "H": -100},
             DimensionsError.DIMENSION_VALUE,
             DimensionsError,
         ),
@@ -253,11 +310,19 @@ def test_containers_validation_assignment(containers, error_msg, error, request)
         ("dimension", "L", {"a": -1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
         ("dimension", "L", {-1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
         ("dimension", "l", 2, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
+        # set containers[container_id]["H"] = ...
+        ("dimension", "H", 1.1, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "H", -1, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "H", None, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "H", [-1], DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "H", {"a": -1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "H", {-1}, DimensionsError.DIMENSION_VALUE, DimensionsError),
+        ("dimension", "h", 2, DimensionsError.DIMENSIONS_KEYS, DimensionsError),
     ],
 )
 def test_containers_validation_setitem(key_type, key, item, error_msg, error, request):
-    items = {"test_id": {"w": 10, "l": 10}}
-    containers = {"cont_id": {"W": 100, "L": 100}}
+    items = {"test_id": {"w": 10, "l": 10, "h": 10}}
+    containers = {"cont_id": {"W": 100, "L": 100, "H": 100}}
     caplog = request.getfixturevalue("caplog")
     prob = HyperPack(containers=containers, items=items)
 
@@ -283,8 +348,8 @@ def test_containers_validation_setitem(key_type, key, item, error_msg, error, re
 
 
 def test_containers_deletion(caplog):
-    items = {"test_id": {"w": 10, "l": 10}}
-    containers = {"cont_id": {"W": 100, "L": 100}}
+    items = {"test_id": {"w": 10, "l": 10, "h": 10}}
+    containers = {"cont_id": {"W": 100, "L": 100, "H": 100}}
     prob = HyperPack(containers=containers, items=items)
 
     # deleting the whole containers structure error
@@ -301,7 +366,7 @@ def test_containers_deletion(caplog):
     assert error_msg in caplog.text
 
     # safe to delete a container
-    prob.containers["cont_id_2"] = {"W": 100, "L": 100}
+    prob.containers["cont_id_2"] = {"W": 100, "L": 100, "H": 100}
     prob.solve()
     del prob.containers["cont_id"]
 
@@ -312,43 +377,43 @@ def test_containers_deletion(caplog):
 
 
 def test_containers_validation_ok():
-    containers = {"cont_id": {"W": 1001, "L": 1001}}
-    items = {"test_id": {"w": 101, "l": 101}}
+    containers = {"cont_id": {"W": 1001, "L": 1001, "H": 1001}}
+    items = {"test_id": {"w": 101, "l": 101, "h": 101}}
     prob = HyperPack(containers=containers, items=items)
     assert prob.containers == containers
     assert prob.items == items
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 101, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 101, 101, 101]}}
 
-    containers = {"cont_id": {"W": 1002, "L": 1002}}
+    containers = {"cont_id": {"W": 1002, "L": 1002, "H": 1002}}
     prob.containers = containers
     assert prob.containers == containers
     assert prob.items == items
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 101, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 101, 101, 101]}}
 
-    prob.containers["cont_id"] = {"W": 1001, "L": 1001}
-    assert prob.containers == {"cont_id": {"W": 1001, "L": 1001}}
+    prob.containers["cont_id"] = {"W": 1001, "L": 1001, "H": 1001}
+    assert prob.containers == {"cont_id": {"W": 1001, "L": 1001, "H": 1001}}
     assert prob.items == items
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 101, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 101, 101, 101]}}
 
     prob.containers["cont_id"]["W"] = 10002
-    assert prob.containers == {"cont_id": {"W": 10002, "L": 1001}}
+    assert prob.containers == {"cont_id": {"W": 10002, "L": 1001, "H": 1001}}
     assert prob.items == items
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 101, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 101, 101, 101]}}
 
 
 def test_containers_assignment_resets_attributes():
-    containers = {"cont_id": {"W": 1001, "L": 1001}}
-    items = {"test_id": {"w": 101, "l": 101}}
+    containers = {"cont_id": {"W": 1001, "L": 1001, "H": 1001}}
+    items = {"test_id": {"w": 101, "l": 101, "h": 101}}
     prob = HyperPack(containers=containers, items=items)
     prob.solve()
-    assert prob.solution == {"cont_id": {"test_id": [0, 0, 101, 101]}}
+    assert prob.solution == {"cont_id": {"test_id": [0, 0, 0, 101, 101, 101]}}
 
     # now changing the _containers value resets solution
-    containers = {"cont_id": {"W": 1002, "L": 1002}}
+    containers = {"cont_id": {"W": 1002, "L": 1002, "H": 1002}}
     prob.containers = containers
     assert prob.containers == containers
     assert prob.items == items
@@ -357,8 +422,8 @@ def test_containers_assignment_resets_attributes():
     assert prob._containers_num == 1
 
     prob.solve()
-    prob.containers["cont_id"] = {"W": 1000, "L": 1000}
-    prob.containers["cont_id_2"] = {"W": 1000, "L": 1000}
+    prob.containers["cont_id"] = {"W": 1000, "L": 1000, "H": 1000}
+    prob.containers["cont_id_2"] = {"W": 1000, "L": 1000, "H": 1000}
     assert prob.solution == {}
     assert prob.obj_val_per_container == {}
     assert prob._containers_num == 2
@@ -376,15 +441,21 @@ def test_containers_assignment_resets_attributes():
     assert prob.solution == {}
     assert prob.obj_val_per_container == {}
 
+    prob.solve()
+    prob.containers["cont_id"]["H"] = 2000
+    assert prob.solution == {}
+    assert prob.obj_val_per_container == {}
+
 
 def test_containers__str__():
-    containers = {"cont_id": {"W": 1001, "L": 1001}}
-    items = {"test_id": {"w": 101, "l": 101}}
+    containers = {"cont_id": {"W": 1001, "L": 1001, "H": 1001}}
+    items = {"test_id": {"w": 101, "l": 101, "h": 101}}
     prob = HyperPack(containers=containers, items=items)
     containers_str = """Containers
   - id: cont_id
     width: 1001
-    length: 1001""".replace(
+    length: 1001
+    height: 1001""".replace(
         "\n", ""
     )
     __str__output = str(prob.containers).replace("\n", "")
