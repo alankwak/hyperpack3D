@@ -337,15 +337,15 @@ class HyperPack(
     """
 
     # settings defaults
-    MAX_TIME_IN_SECONDS_DEFAULT_VALUE = 30
-    WORKERS_NUM_DEFAULT_VALUE = 8
+    MAX_TIME_IN_SECONDS_DEFAULT_VALUE = 60
+    WORKERS_NUM_DEFAULT_VALUE = 1
 
     # hypersearch/localsearch parameters
     # max neighbors parsing
     # before accepting node as optimum
     MAX_NEIGHBORS_THROTTLE = 2500
     # Potential points strategies constant suffix
-    STRATEGIES_SUFFIX = ("A_", "B_", "C", "C_x", "C_y", "C__",)
+    STRATEGIES_SUFFIX = ("C", "C_x", "C_y", "C__",)
     STRATEGIES_SUFFIX_STRIPACK = ("B__", "A__", "F", "E")
 
     def __init__(

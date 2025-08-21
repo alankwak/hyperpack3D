@@ -61,7 +61,7 @@ class PointGenerationMixin:
 
     # % --------- construction heuristic methods ----------
 
-    def _check_3d_fitting(self, W, L, H, Xo, Yo, Zo, w, l, h, current_items, requires_support=False, support_ratio=0.1, xy_planes=None) -> bool:
+    def _check_3d_fitting(self, W, L, H, Xo, Yo, Zo, w, l, h, current_items, requires_support=False, support_ratio=0.55, xy_planes=None) -> bool:
         """
         Checks if the item with coordinates (Xo, Yo, Zo)
         and dimensions (w, l, h) fits without colliding with any
@@ -161,7 +161,7 @@ class PointGenerationMixin:
 
         # Define the 8 corners of the newly placed box
         corners = [
-            (Xo + w, Yo, Zo), (Xo, Yo + l, Zo), (Xo, Yo, Zo + h),
+            (Xo + w, Yo, Zo), (Xo, Yo + l, Zo), (Xo, Yo, Zo + h), (Xo + w, Yo + l, Zo)
         ]
 
         for p in corners:
@@ -170,8 +170,8 @@ class PointGenerationMixin:
             # Rule 1: Add points that are on the "positive" shell of the new box
             # These become primary points for building outwards and upwards.
             if px == Xo + w and py < L and pz < H: potential_points["B"].appendleft((px, py, pz))
-            if py == Yo + l and px < W and pz < H: potential_points["A"].appendleft((px, py, pz))
-            if pz == Zo + h and px < W and py < L: potential_points["C"].appendleft((px, py, pz))
+            elif py == Yo + l and px < W and pz < H: potential_points["A"].appendleft((px, py, pz))
+            elif pz == Zo + h and px < W and py < L: potential_points["C"].appendleft((px, py, pz))
 
             # Rule 2: Create projection points by searching for support
             # This helps find stable ground in gaps and canyons.
@@ -559,7 +559,6 @@ class PointGenerationMixin:
                 was_placed, new_state = self._find_placement_in_container(
                     item, item_id, self._containers[cont_id], container_states[cont_id]
                 )
-
                 if was_placed:
                     # If placed, update the container's state and move to the NEXT ITEM
                     container_states[cont_id] = new_state
@@ -1084,32 +1083,37 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
             self._copy_objective_val_per_container(),
         )
 
+    # In mixins.py, replace your calculate_obj_value method with this new version:
     def calculate_obj_value(self):
         """
-        Calculates the objective value based on 3D volume utilization across multiple containers.
-        It encourages filling containers sequentially by weighting the last container's
-        utilization less. A penalty is also added for the volume-weighted Z-center of mass
-        to favor solutions that place larger items lower.
+        Calculates an objective value that prioritizes using the fewest containers.
+        The score is primarily determined by the number of empty containers, with the
+        average utilization of used containers acting as a tie-breaker.
         """
         if not self.solution:
             return 0
 
-        container_utilizations = []
-        container_penalties = []
+        total_containers_available = len(self._containers)
+        used_containers_count = 0
+        sum_of_utilizations = 0.0
+        total_penalty = 0.0
 
         # Iterate through each container that has a solution
         for cont_id in self.solution:
             container = self._containers[cont_id]
             solution_items = self.solution[cont_id]
 
-            # Skip containers that are part of the problem but unused in this solution
+            # Only consider containers that have items in them
             if not solution_items:
-                container_utilizations.append(0)
-                container_penalties.append(0)
                 continue
+            
+            used_containers_count += 1
 
             H = self._get_initial_container_height(container)
             total_container_volume = container["W"] * container["L"] * H
+
+            if total_container_volume == 0:
+                continue
             
             total_items_volume = 0
             weighted_z_sum = 0
@@ -1118,19 +1122,35 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
                 # item_data from solution is [Xo, Yo, Zo, w, l, h]
                 item_volume = item_data[3] * item_data[4] * item_data[5]
                 total_items_volume += item_volume
-                weighted_z_sum += item_volume * item_data[2]
+                # Calculate center of mass using the item's center point
+                item_center_z = item_data[2] + (item_data[5] / 2)
+                weighted_z_sum += item_volume * item_center_z
 
             # Calculate utilization and penalty for this specific container
             utilization = total_items_volume / total_container_volume
-            container_utilizations.append(utilization)
+            sum_of_utilizations += utilization
 
             penalty = 0
             if total_items_volume > 0:
                 center_of_mass_z = weighted_z_sum / total_items_volume
                 normalized_penalty = center_of_mass_z / H
-                penalty_factor = 0.001  # Small factor to act as a tie-breaker
+                penalty_factor = 0.001  # Small factor to act as a micro-tie-breaker
                 penalty = penalty_factor * normalized_penalty
-            container_penalties.append(penalty)
+            total_penalty += penalty
+
+        # If no items were packed at all
+        if used_containers_count == 0:
+            return 0
+
+        # Heuristic Calculation
+        # Major component: Number of empty containers. Using a large constant (1.0) for each.
+        # Minor component: Average utilization of the containers that were actually used.
+        empty_containers_score = total_containers_available - used_containers_count
+        average_utilization = sum_of_utilizations / used_containers_count
+        
+        # The final score prioritizes leaving bins empty, then packing the used bins well.
+        # The Z-mass penalty acts as a final small tie-breaker.
+        return empty_containers_score + average_utilization - total_penalty
 
         # Aggregate the results from all containers
         base_objective = 0

@@ -90,7 +90,12 @@ containers = {
 }
 
 if __name__ == "__main__":
-    problem = HyperPack(containers=containers, items=items)
-    problem.hypersearch()
+    settings = {
+        "max_time_in_seconds": 2,
+        "workers_num": 4,
+    }
+
+    problem = HyperPack(containers=containers, items=items, settings=settings)
+    problem.hypersearch(sorting_by=("volume", True))
     print(problem.log_solution())
     problem.create_figure(show=True)
