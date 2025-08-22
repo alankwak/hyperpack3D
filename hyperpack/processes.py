@@ -1,4 +1,4 @@
-from time import time
+from time import perf_counter
 from multiprocessing import Process, Queue
 from .exceptions import MultiProcessError
 from .loggers import hyperLogger
@@ -107,7 +107,7 @@ class HyperSearchProcess(Process):
 
                 # check if any process has reached global optimum
                 global_optima = is_global(array_optimum, optimum_obj_value)
-                out_of_time = time() - start_time > max_time_in_seconds
+                out_of_time = perf_counter() - start_time > max_time_in_seconds
 
                 if out_of_time:
                     hyperLogger.debug(

@@ -1,4 +1,5 @@
 import math
+import queue
 import sys
 import time
 from .abstract import AbstractLocalSearch
@@ -36,32 +37,21 @@ class PointGenerationMixin:
         "B_y",
         "B",
         "A_",  # A' point
-        "B_",  # B' point
         "C",
-        "C_y",  # C'y point
-        "C_x",  # C'x point
-        "C__"
     )
     INIT_POTENTIAL_POINTS = {
-        "O": (0, 0),
+        "O": (0, 0, 0),
         "A": deque(),
         "A_": deque(),
         "A_x": deque(),
         "B": deque(),
         "B_y": deque(),
-        "B_": deque(),
-        "C_y": deque(),
-        "C_x": deque(),
         "C": deque(),
-        "C__": deque(),
     }
-
-    max_obj_value = 1
-    init_obj_value = 0
 
     # % --------- construction heuristic methods ----------
 
-    def _check_3d_fitting(self, W, L, H, Xo, Yo, Zo, w, l, h, current_items, requires_support=False, support_ratio=0.55, xy_planes=None) -> bool:
+    def _check_3d_fitting(self, W, L, H, Xo, Yo, Zo, w, l, h, current_items, requires_support=False,  xy_planes=None) -> bool:
         """
         Checks if the item with coordinates (Xo, Yo, Zo)
         and dimensions (w, l, h) fits without colliding with any
@@ -77,7 +67,7 @@ class PointGenerationMixin:
             raise SettingsError(
                 "xy_planes must be provided when requires_support is True"
             )
-        
+
         # Check if the item fits within the container dimensions
         if(Xo + w > W or Yo + l > L or Zo + h > H):
             return False
@@ -110,58 +100,27 @@ class PointGenerationMixin:
                 return False
             
         if requires_support:
-            percent_support = 0
+            support_ratio = self._settings.get("support_ratio", 0.55)
+            percent_support_z = 0
             bottom_area = w * l
             for plane in xy_planes.get(Zo, []):
                 intersecting_area = max(0, min(Xo + w, plane[1][0]) - max(Xo, plane[0][0])) * max(0, min(Yo + l, plane[1][1]) - max(Yo, plane[0][1]))
-                percent_support += intersecting_area / bottom_area
+                percent_support_z += intersecting_area / bottom_area
             
-            if percent_support < support_ratio:
+            if percent_support_z < support_ratio:
                 return False
 
         return True
 
-    def _check_fitting(self, W, L, Xo, Yo, w, l, container_coords) -> bool:
-        """
-        Checks if all the coordinates of the item
-        are not taken in `container_coords`.
-        `container_coords` : [
-            [int, int, ... W elements], # y-th coordinate
-            .
-            .
-            .
-            L lists, 1 for each coordinate
-        ]
-        """
-        if (
-            Xo + w > W
-            or Yo + l > L
-            or container_coords[Yo][Xo]
-            or container_coords[Yo + l - 1][Xo]
-            or container_coords[Yo][Xo + w - 1]
-        ):
-            return False
-
-        for x in range(Xo, Xo + w - 1):
-            if container_coords[Yo][x]:
-                return False
-        for y in range(Yo, Yo + l - 1):
-            if container_coords[y][Xo]:
-                return False
-
-        return True
-
-    # In mixins.py, replace the entire _generate_3d_points method with this:
     def _generate_3d_points(self, container, xy_planes, xz_planes, yz_planes, potential_points, Xo, Yo, Zo, w, l, h, debug=False):
         """
         Generates a rich set of potential points from the corners of the newly placed item,
         including projections and points in concave corners.
         """
-        W, L, H = container["W"], container["L"], self._get_initial_container_height(container)
 
         # Define the 8 corners of the newly placed box
         corners = [
-            (Xo + w, Yo, Zo), (Xo, Yo + l, Zo), (Xo, Yo, Zo + h), (Xo + w, Yo + l, Zo)
+            (Xo + w, Yo, Zo), (Xo, Yo + l, Zo), (Xo, Yo, Zo + h)
         ]
 
         for p in corners:
@@ -169,28 +128,30 @@ class PointGenerationMixin:
 
             # Rule 1: Add points that are on the "positive" shell of the new box
             # These become primary points for building outwards and upwards.
-            if px == Xo + w and py < L and pz < H: potential_points["B"].appendleft((px, py, pz))
-            elif py == Yo + l and px < W and pz < H: potential_points["A"].appendleft((px, py, pz))
-            elif pz == Zo + h and px < W and py < L: potential_points["C"].appendleft((px, py, pz))
+            if px == Xo + w: potential_points["B"].appendleft((px, py, pz))
+            if py == Yo + l: potential_points["A"].appendleft((px, py, pz))
+            if pz == Zo + h: potential_points["C"].append((px, py, pz))
 
             # Rule 2: Create projection points by searching for support
             # This helps find stable ground in gaps and canyons.
 
             # Project down (-Z)
-            if pz > 0:
+            if pz > 0 and pz != Zo + h:
                 support_z = 0
                 for z_level in sorted(xy_planes.keys(), reverse=True):
-                    if z_level < pz:
+                    if z_level < pz + h:
                         for plane in xy_planes[z_level]:
                             if plane[0][0] <= px < plane[1][0] and plane[0][1] <= py < plane[1][1]:
                                 support_z = z_level
                                 break
                     if support_z > 0: break
-                if support_z > 0:
-                    potential_points["A_"].appendleft((px, py, support_z))
+                potential_points["A_"].appendleft((px, py, support_z))
+                if debug:
+                    logger.debug(
+                        f"Projected z from ({px}, {py}, {pz}) to ({px}, {py}, {support_z})")
 
             # Project backward (-Y)
-            if py > 0:
+            if py > 0 and py != Yo + l:
                 support_y = 0
                 for y_level in sorted(xz_planes.keys(), reverse=True):
                     if y_level < py:
@@ -199,10 +160,12 @@ class PointGenerationMixin:
                                 support_y = y_level
                                 break
                     if support_y > 0: break
-                if support_y > 0:
-                    potential_points["A_x"].appendleft((px, support_y, pz))
+                potential_points["B_y"].appendleft((px, support_y, pz))
+                if debug:
+                    logger.debug(
+                        f"Projected y from ({px}, {py}, {pz}) to ({px}, {support_y}, {pz})")
 
-            if px > 0:
+            if px > 0 and px != Xo + w:
                 support_x = 0
                 for x_level in sorted(yz_planes.keys(), reverse=True):
                     if x_level < px:
@@ -211,45 +174,25 @@ class PointGenerationMixin:
                                 support_x = x_level
                                 break
                     if support_x > 0: break
-                if support_x > 0:
-                    potential_points["B_y"].appendleft((support_x, py, pz))
-
-    def _get_current_point(self, potential_points) -> tuple:
-        for pclass in self._potential_points_strategy:
-            if potential_points[pclass]:
-                return potential_points[pclass].popleft(), pclass
-
-        return (None, None)
+                potential_points["A_x"].appendleft((support_x, py, pz))
+                if debug:
+                    logger.debug(
+                        f"Projected x from ({px}, {py}, {pz}) to ({support_x}, {py}, {pz})")
 
     def _append_planes(self, xy_planes, xz_planes, yz_planes, Xo, Yo, Zo, w, l, h):
-        # xy planes
-        if Zo in xy_planes:
-            xy_planes[Zo].append(((Xo, Yo), (Xo + w, Yo + l)))
-        else:
-            xy_planes[Zo] = [((Xo, Yo), (Xo + w, Yo + l))]
-
+        # xy plane
         if Zo + h in xy_planes:
             xy_planes[Zo + h].append(((Xo, Yo), (Xo + w, Yo + l)))
         else:
             xy_planes[Zo + h] = [((Xo, Yo), (Xo + w, Yo + l))]
 
-        # xz planes
-        if Yo in xz_planes:
-            xz_planes[Yo].append(((Xo, Zo), (Xo + w, Zo + h)))
-        else:
-            xz_planes[Yo] = [((Xo, Zo), (Xo + w, Zo + h))]
-
+        # xz plane
         if Yo + l in xz_planes:
             xz_planes[Yo + l].append(((Xo, Zo), (Xo + w, Zo + h)))
         else:
             xz_planes[Yo + l] = [((Xo, Zo), (Xo + w, Zo + h))]
 
-        # yz planes
-        if Xo in yz_planes:
-            yz_planes[Xo].append(((Yo, Zo), (Yo + l, Zo + h)))
-        else:
-            yz_planes[Xo] = [((Yo, Zo), (Yo + l, Zo + h))]
-
+        # yz plane
         if Xo + w in yz_planes:
             yz_planes[Xo + w].append(((Yo, Zo), (Yo + l, Zo + h)))
         else:
@@ -267,23 +210,19 @@ class PointGenerationMixin:
             "A": deque(),
             "B": deque(),
             "A_": deque(),
-            "B_": deque(),
             "A_x": deque(),
             "B_y": deque(),
             "C": deque(),
-            "C_y": deque(),
-            "C_x": deque(),
-            "C__": deque(),
         }
 
     def get_initial_xy_planes(self, W, L, H):
-        return {0: [((0, 0), (W, L))], H: [((0, 0), (W, L))]}
+        return {0: [((0, 0), (W, L))]}
     
     def get_initial_xz_planes(self, W, L, H):
-        return {0: [((0, 0), (W, H))], L: [((0, 0), (W, H))]}
+        return {0: [((0, 0), (W, H))]}
     
     def get_initial_yz_planes(self, W, L, H):
-        return {0: [((0, 0), (L, H))], W: [((0, 0), (L, H))]}
+        return {0: [((0, 0), (L, H))]}
 
     def _get_initial_point(self, potential_points, **kwargs):
         return potential_points["O"], "O"
@@ -339,7 +278,7 @@ class PointGenerationMixin:
                 # Use the 3D fitting check
                 if self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, temp_state['placed_items'], requires_support=True, xy_planes=temp_state['xy_planes']):
                     # --- Success! A placement was found. ---
-                    
+
                     # Update the item with its position and add it to the state
                     placed_item = item.copy()
                     placed_item.update({"Xo": Xo, "Yo": Yo, "Zo": Zo, "rotation_state": rotation_state})
@@ -353,145 +292,6 @@ class PointGenerationMixin:
 
         # If we get here, no placement was found for this item in this container
         return False, container_state
-
-    # def _construct_solution(self, container, items, debug=False) -> tuple:
-        """
-        Point generation construction heuristic
-        for solving single container problem instance.
-
-        INPUT
-            container,
-            items,
-            debug (mode),
-
-            implicitly by attribute, the potential points strategy
-
-        OUTPUT
-            A. returns current_solution with the solution of the container.
-            B. returns (remaining non-fitted items, containers utilization) tuple.
-        """
-        current_solution = {}
-        strip_pack = getattr(self, "_strip_pack", False)
-
-        # 'items' are the available for placement
-        # after an item get's picked, it gets removed
-        items_ids = [_id for _id in items]
-
-        L = container["L"]
-        W = container["W"]
-        H = self._get_initial_container_height(container)
-
-        # obj_value is the container utilization
-        # obj_value = Volume(Placed Items)/Volume(Container)
-        obj_value = self.init_obj_value
-        max_obj_value = self.max_obj_value
-
-        xy_planes = self.get_initial_xy_planes(W, L, H)
-        xz_planes = self.get_initial_xz_planes(W, L, H)
-        yz_planes = self.get_initial_yz_planes(W, L, H)
-
-        potential_points = self._get_initial_potential_points()
-
-        # O(0, 0, 0) init point
-        current_point, point_class = self._get_initial_point(potential_points)
-
-        # START of item placement process
-        while True:
-            if (current_point is None) or (not items_ids) or (obj_value >= max_obj_value):
-                break
-
-            if debug:
-                logger.debug(f"\nCURRENT POINT: {current_point} class: {point_class}")
-
-            Xo, Yo, Zo = current_point
-
-            # CURRENT POINT'S ITEM SEARCH
-            # get first fitting in sequence
-            for item_id in items_ids:
-                item = items[item_id]
-                w, l, h, rotation_orientation = item["w"], item["l"], item["h"], 0
-
-                check = self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, current_solution, requires_support=True, xy_planes=xy_planes)
-                if not check:
-                    if self._rotation:
-                        for rotation_state in range(1, 6):
-                            match rotation_state:
-                                case 1:  # rotate 90 degrees without changing base
-                                    w, l, h = item["l"], item["w"], item["h"]
-                                case 2: # change base to w x h
-                                    w, l, h = item["w"], item["h"], item["l"]
-                                case 3: # w x h base + rotate 90 degrees
-                                    w, l, h = item["h"], item["w"], item["l"]
-                                case 4: # change base to l x h
-                                    w, l, h = item["l"], item["h"], item["w"]
-                                case 5: # l x h base + rotate 90 degrees
-                                    w, l, h = item["h"], item["l"], item["w"]
-                            
-                            check = self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, current_solution, requires_support=True, xy_planes=xy_planes)
-                            if check:
-                                rotation_orientation = rotation_state
-                                break
-
-                        if not check:
-                            continue
-                    else:
-                        continue
-
-                if debug:
-                    logger.debug(f"--> {item_id}\n")
-
-                # removing item wont affect execution. 'for' breaks below
-                items_ids.remove(item_id)
-                del items[item_id]
-
-                if not strip_pack:
-                    obj_value = self.calculate_objective_value(
-                        obj_value,
-                        w,
-                        l,
-                        h,
-                        W,
-                        L,
-                        H,
-                    )
-
-                item.update({"Xo": Xo, "Yo": Yo, "Zo": Zo, "rotation_state": rotation_orientation})
-                current_solution[item_id] = item
-
-                self._generate_3d_points(
-                    container,
-                    xy_planes,
-                    xz_planes,
-                    yz_planes,
-                    potential_points,
-                    Xo,
-                    Yo,
-                    Zo,
-                    w,
-                    l,
-                    h,
-                    debug=False,
-                )
-
-                self._append_planes(xy_planes, xz_planes, yz_planes, Xo, Yo, Zo, w, l, h)
-
-                break
-
-            if debug:
-                self._current_potential_points = deepcopy(potential_points)
-
-            current_point, point_class = self._get_current_point(potential_points)
-
-        # END of item placement process
-
-        if strip_pack:
-            height_of_solution = max(set(horizontals)) or 1
-            items_area = sum(
-                [item["w"] * item["l"] for _, item in current_solution.items()]
-            )
-            obj_value = items_area / (W * height_of_solution)
-
-        return items, obj_value, current_solution
 
     def _get_container_solution(self, current_solution):
         """
@@ -525,7 +325,6 @@ class PointGenerationMixin:
             ]
         return solution
 
-    # In mixins.py, replace the ENTIRE _solve method with this new First Fit version:
     def _solve(self, sequence=None, debug=False) -> None:
         """
         Solves for all containers using a First Fit heuristic.
@@ -570,68 +369,13 @@ class PointGenerationMixin:
         for cont_id in self._containers:
             placed_items_in_cont = container_states[cont_id]['placed_items']
             solution[cont_id] = self._get_container_solution(placed_items_in_cont)
-            
+
             # Calculate final utilization for the objective function
             total_items_vol = sum(d['w'] * d['l'] * d['h'] for d in placed_items_in_cont.values())
             total_cont_vol = self._containers[cont_id]['W'] * self._containers[cont_id]['L'] * self._containers[cont_id]['H']
             obj_val_per_container[cont_id] = total_items_vol / total_cont_vol if total_cont_vol > 0 else 0
 
         return solution, obj_val_per_container
-
-    # def _solve(self, sequence=None, debug=False) -> None:
-    #     """
-    #     Solves for all the containers, using the
-    #     `point generation construction heuristic
-    #     <https://github.com/AlkiviadisAleiferis/hyperpack-theory/>`_.
-
-    #     **OPERATION**
-    #         Populates ``solution`` with solution found for every container.
-
-    #         Populates ``obj_val_per_container`` with the utilization \
-    #         of every container.
-
-    #     **PARAMETERS**
-    #         ``sequence`` : the sequence of ids to create the items to solve for. \
-    #         If None, ``items`` will be used. Items used for solving are deepcopied \
-    #         from ``items`` with corresponding sequence.
-
-    #         ``debug`` : If True, debuging mode will be enabled, usefull \
-    #         only for developing.
-
-    #     **RETURNS**
-    #         ``solution`` , ``obj_val_per_container``
-
-    #     **NOTES**
-    #         Solution is deterministic, and solely dependent on these factors:
-
-    #             ``potential_points_strategy`` attribute for the potential points strategy.
-
-    #             ``items_sequence`` **sequence** of the items ids.
-    #     """
-    #     # deepcopying is done cause items will be removed
-    #     # from items pool after each container is solved
-    #     # self._items shouldn't have same ids with items
-    #     if sequence is None:
-    #         items = self._items.deepcopy()
-    #     else:
-    #         items = self._items.deepcopy(sequence)
-
-    #     obj_val_per_container = {}
-    #     solution = {}
-
-    #     for cont_id in self._containers:
-    #         solution[cont_id] = {}
-    #         obj_val_per_container[cont_id] = 0
-    #         if items == {}:
-    #             continue
-    #         items, util, current_solution = self._construct_solution(
-    #             container=self._containers[cont_id], items=items, debug=debug
-    #         )
-    #         obj_val_per_container[cont_id] = util
-    #         solution[cont_id] = self._get_container_solution(current_solution)
-
-    #     return solution, obj_val_per_container
-
 
 class SolutionLoggingMixin:
     """
@@ -1037,6 +781,12 @@ class ItemsManipulationMixin:
                 for _id, i in items.items()
             ]
             sorted_items.sort(reverse=reverse)
+        elif by == "largest_side_area":
+            sorted_items = [
+                [max(i["w"] * i["l"], i["w"] * i["h"], i["l"] * i["h"]), _id]
+                for _id, i in items.items()
+            ]
+            sorted_items.sort(reverse=reverse)
         else:
             raise NotImplementedError
 
@@ -1098,6 +848,8 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
         sum_of_utilizations = 0.0
         total_penalty = 0.0
 
+        weights = {cont_id: 1 / (i+2) for i, cont_id in enumerate(self._containers)}
+
         # Iterate through each container that has a solution
         for cont_id in self.solution:
             container = self._containers[cont_id]
@@ -1111,9 +863,6 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
 
             H = self._get_initial_container_height(container)
             total_container_volume = container["W"] * container["L"] * H
-
-            if total_container_volume == 0:
-                continue
             
             total_items_volume = 0
             weighted_z_sum = 0
@@ -1128,15 +877,12 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
 
             # Calculate utilization and penalty for this specific container
             utilization = total_items_volume / total_container_volume
-            sum_of_utilizations += utilization
+            sum_of_utilizations += utilization * weights[cont_id]
 
-            penalty = 0
-            if total_items_volume > 0:
-                center_of_mass_z = weighted_z_sum / total_items_volume
-                normalized_penalty = center_of_mass_z / H
-                penalty_factor = 0.001  # Small factor to act as a micro-tie-breaker
-                penalty = penalty_factor * normalized_penalty
-            total_penalty += penalty
+            center_of_mass_z = weighted_z_sum / total_items_volume
+            normalized_penalty = center_of_mass_z / H
+            penalty_factor = 0.001  # Small factor to act as a micro-tie-breaker
+            total_penalty += penalty_factor * normalized_penalty
 
         # If no items were packed at all
         if used_containers_count == 0:
@@ -1150,19 +896,7 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
         
         # The final score prioritizes leaving bins empty, then packing the used bins well.
         # The Z-mass penalty acts as a final small tie-breaker.
-        return empty_containers_score + average_utilization - total_penalty
-
-        # Aggregate the results from all containers
-        base_objective = 0
-        if len(container_utilizations) == 1:
-            base_objective = container_utilizations[0]
-        elif len(container_utilizations) > 1:
-            # encourages filling earlier bins before using the last one
-            base_objective = sum(container_utilizations[:-1]) + 0.7 * container_utilizations[-1]
-
-        total_penalty = sum(container_penalties)
-        
-        return base_objective - total_penalty
+        return empty_containers_score + sum_of_utilizations - total_penalty
 
     def get_init_solution(self):
         self.solve(debug=False)

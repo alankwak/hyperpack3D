@@ -343,9 +343,9 @@ class HyperPack(
     # hypersearch/localsearch parameters
     # max neighbors parsing
     # before accepting node as optimum
-    MAX_NEIGHBORS_THROTTLE = 2500
+    MAX_NEIGHBORS_THROTTLE = 2
     # Potential points strategies constant suffix
-    STRATEGIES_SUFFIX = ("C", "C_x", "C_y", "C__",)
+    STRATEGIES_SUFFIX = ("C",)
     STRATEGIES_SUFFIX_STRIPACK = ("B__", "A__", "F", "E")
 
     def __init__(
@@ -477,7 +477,7 @@ class HyperPack(
                     hyperLogger.debug("Terminating due to max objective value obtained")
                     break
 
-            if time.time() - self.start_time > self._max_time_in_seconds:
+            if time.perf_counter() - self.start_time > self._max_time_in_seconds:
                 hyperLogger.debug("Terminating due to surpassed max time")
                 break
         return *retain_solution, best_strategy
@@ -606,7 +606,7 @@ class HyperPack(
         self.sort_items(sorting_by=sorting_by)
         self.orient_items(orientation=orientation)
 
-        self.start_time = time.time()
+        self.start_time = time.perf_counter()
 
         # POTENTIAL POINTS STRATEGIES DETERMINATION
         # exhaustive hypersearch creates all the different potential
@@ -623,5 +623,5 @@ class HyperPack(
             )
         )
 
-        total_time = time.time() - self.start_time
+        total_time = time.perf_counter() - self.start_time
         hyperLogger.debug(f"Execution time : {total_time} [sec]")

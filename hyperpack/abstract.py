@@ -1,7 +1,7 @@
 from .loggers import hyperLogger
 from abc import ABC, abstractmethod
 from itertools import combinations
-from time import time
+from time import perf_counter
 
 
 class AbstractLocalSearch(ABC):
@@ -166,14 +166,13 @@ class AbstractLocalSearch(ABC):
                     global_optima = self.global_check(best_obj_value, optimum_obj_value)
 
                 # criteria update
-                out_of_time = time() - start_time >= max_time_in_seconds
+                out_of_time = perf_counter() - start_time >= max_time_in_seconds
                 max_neighbors = processed_neighbors >= max_neighbors_num
 
                 if out_of_time or neighbor_found or global_optima or max_neighbors:
                     break
 
             # end of node search
-
             if debug:
                 self.debug_local_search(
                     node_num=node_num,
