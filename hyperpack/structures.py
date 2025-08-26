@@ -84,7 +84,7 @@ class Dimensions(UserDict):
             raise DimensionsError(DimensionsError.DIMENSIONS_KEYS)
 
         try:
-            if not isinstance(item, int) or item <= 0:
+            if (key in "WLH" or key in "wlh") and (not isinstance(item, int) or item <= 0):
                 raise DimensionsError
         except Exception:
             raise DimensionsError(DimensionsError.DIMENSION_VALUE)
@@ -307,7 +307,7 @@ class Items(AbstractStructureSet):
     of the HyperPack class, by proper subclassing of AbstractStructureSet.
     """
 
-    PROPER_DIMENSIONS_KEYS = ("w", "l", "h")
+    PROPER_DIMENSIONS_KEYS = ("w", "l", "h", "horizontal_rotation_only")
     ERROR_CLASS = ItemsError
 
     def __init__(self, items=None, instance=None):

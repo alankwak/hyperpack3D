@@ -32,20 +32,18 @@ class PointGenerationMixin:
 
     # solving constants
     DEFAULT_POTENTIAL_POINTS_STRATEGY = (
-        "A_x",
+        "A_z",
+        "B_z",
         "A",
-        "B_y",
         "B",
-        "A_",  # A' point
         "C",
     )
     INIT_POTENTIAL_POINTS = {
         "O": (0, 0, 0),
         "A": deque(),
-        "A_": deque(),
-        "A_x": deque(),
+        "A_z": deque(),
         "B": deque(),
-        "B_y": deque(),
+        "B_z": deque(),
         "C": deque(),
     }
 
@@ -73,25 +71,10 @@ class PointGenerationMixin:
             return False
 
         # Check for collisions with existing items
-        for item_id in current_items:
-            item = current_items[item_id]
+        for item_id, item in current_items.items():
             X, Y, Z = item["Xo"], item["Yo"], item["Zo"]
             w_, l_, h_ = item["w"], item["l"], item["h"]
 
-            if item['rotation_state']:
-                match item['rotation_state']:
-                    case 1:  # rotate 90 degrees without changing base
-                        w_, l_, h_ = l_, w_, h_
-                    case 2: # change base to w x h
-                        w_, l_, h_ = w_, h_, l_
-                    case 3: # w x h base + rotate 90 degrees
-                        w_, l_, h_ = h_, w_, l_
-                    case 4: # change base to l x h
-                        w_, l_, h_ = l_, h_, w_
-                    case 5: # l x h base + rotate 90 degrees
-                        w_, l_, h_ = h_, l_, w_
-                    case _:
-                        pass
             if (
                 Xo + w > X and X + w_ > Xo and
                 Yo + l > Y and Y + l_ > Yo and
@@ -112,74 +95,184 @@ class PointGenerationMixin:
 
         return True
 
-    def _generate_3d_points(self, container, xy_planes, xz_planes, yz_planes, potential_points, Xo, Yo, Zo, w, l, h, debug=False):
+    def _generate_3d_points(
+            self, container_items, outer_xy_planes, outer_xz_planes, outer_yz_planes, inner_xy_planes, inner_xz_planes, inner_yz_planes, debug=False
+        ):
         """
         Generates a rich set of potential points from the corners of the newly placed item,
         including projections and points in concave corners.
         """
 
-        # Define the 8 corners of the newly placed box
-        corners = [
-            (Xo + w, Yo, Zo), (Xo, Yo + l, Zo), (Xo, Yo, Zo + h)
-        ]
+        potential_points = {
+            "A": deque(),
+            "B": deque(),
+            "A_z": deque(),
+            "B_z": deque(),
+            "C": deque(),
+            "A_x": deque(),
+            "B_y": deque(),
+            "C_xy": deque(),
+        }
 
-        for p in corners:
-            px, py, pz = p
+        for item_id, item in sorted(container_items.items()):
+            Xo, Yo, Zo, w, l, h = item["Xo"], item["Yo"], item["Zo"], item["w"], item["l"], item["h"]
+            
+            x, y, z = 0, 1, 2
+            # Define the 3 corners of the item
+            A = (Xo, Yo + l, Zo) # origin + y
+            B = (Xo + w, Yo, Zo) # origin + x
+            C = (Xo, Yo, Zo + h) # origin + z
 
-            # Rule 1: Add points that are on the "positive" shell of the new box
-            # These become primary points for building outwards and upwards.
-            if px == Xo + w: potential_points["B"].appendleft((px, py, pz))
-            if py == Yo + l: potential_points["A"].appendleft((px, py, pz))
-            if pz == Zo + h: potential_points["C"].append((px, py, pz))
+            blockC = False
+            for plane in inner_xy_planes.get(Zo + h, []):
+                if plane[0][0] <= C[x] < plane[1][0] and plane[0][1] <= C[y] < plane[1][1]:
+                    blockC = True
+                    break
+                    
+            blockA = False
+            blockA_z = False
+            for plane in inner_xz_planes.get(Yo + l, []):
+                if plane[0][0] <= A[x] < plane[1][0] and plane[0][1] <= A[z] < plane[1][1]:
+                    blockA = True
+                if plane[0][0] <= A[x] < plane[1][0] and plane[0][1] <= A[z] + h < plane[1][1]:
+                    blockA_z = True
 
-            # Rule 2: Create projection points by searching for support
-            # This helps find stable ground in gaps and canyons.
-
-            # Project down (-Z)
-            if pz > 0 and pz != Zo + h:
-                support_z = 0
-                for z_level in sorted(xy_planes.keys(), reverse=True):
-                    if z_level < pz + h:
-                        for plane in xy_planes[z_level]:
-                            if plane[0][0] <= px < plane[1][0] and plane[0][1] <= py < plane[1][1]:
-                                support_z = z_level
-                                break
-                    if support_z > 0: break
-                potential_points["A_"].appendleft((px, py, support_z))
-                if debug:
-                    logger.debug(
-                        f"Projected z from ({px}, {py}, {pz}) to ({px}, {py}, {support_z})")
-
-            # Project backward (-Y)
-            if py > 0 and py != Yo + l:
-                support_y = 0
-                for y_level in sorted(xz_planes.keys(), reverse=True):
-                    if y_level < py:
-                        for plane in xz_planes[y_level]:
-                            if plane[0][0] <= px < plane[1][0] and plane[0][1] <= pz < plane[1][1]:
-                                support_y = y_level
-                                break
-                    if support_y > 0: break
-                potential_points["B_y"].appendleft((px, support_y, pz))
-                if debug:
-                    logger.debug(
-                        f"Projected y from ({px}, {py}, {pz}) to ({px}, {support_y}, {pz})")
-
-            if px > 0 and px != Xo + w:
+            blockB = False
+            blockB_z = False
+            for plane in inner_yz_planes.get(Xo + w, []):
+                if plane[0][0] <= B[y] < plane[1][0] and plane[0][1] <= B[z] < plane[1][1]:
+                    blockB = True
+                if plane[0][0] <= B[y] < plane[1][0] and plane[0][1] <= B[z] + h < plane[1][1]:
+                    blockB_z = True
+            
+            # --------- add C, C'x, C'y points if possible ---------
+            blockC_x = False
+            blockC_y = False
+            if not blockC:
+                # check if C' can be projected to C'x
                 support_x = 0
-                for x_level in sorted(yz_planes.keys(), reverse=True):
-                    if x_level < px:
-                        for plane in yz_planes[x_level]:
-                            if plane[0][0] <= py < plane[1][0] and plane[0][1] <= pz < plane[1][1]:
+                for x_level in sorted(outer_yz_planes.keys(), reverse=True):
+                    
+                    if x_level <= C[x]:
+                        for plane in outer_yz_planes[x_level]:
+                            if x_level == C[x] and plane[0][0] <= C[y] < plane[1][0] and plane[0][1] <= C[z] < plane[1][1]:
+                                blockC_x = True
+                                break
+                            elif plane[0][0] <= C[y] < plane[1][0] and plane[0][1] <= C[z] < plane[1][1]:
                                 support_x = x_level
                                 break
-                    if support_x > 0: break
-                potential_points["A_x"].appendleft((support_x, py, pz))
+                    
+                    if support_x > 0 or blockC_x: break
+                
+                if not blockC_x:
+                    potential_points["C"].append((support_x, C[y], C[z]))
                 if debug:
                     logger.debug(
-                        f"Projected x from ({px}, {py}, {pz}) to ({support_x}, {py}, {pz})")
+                        f"\tProjected C ({C[x]}, {C[y]}, {C[z]}) to C'x ({support_x}, {C[y]}, {C[z]})")
+                
+                # check if C' can be projected to C'y
+                support_y = 0
+                for y_level in sorted(outer_xz_planes.keys(), reverse=True):
+                    
+                    if y_level <= C[y]:
+                        for plane in outer_xz_planes[y_level]:
+                            if y_level == C[y] and plane[0][0] <= C[x] < plane[1][0] and plane[0][1] <= C[z] < plane[1][1]:
+                                blockC_y = True
+                                break
+                            elif plane[0][0] <= C[x] < plane[1][0] and plane[0][1] <= C[z] < plane[1][1]:
+                                support_y = y_level
+                                break
+                    
+                    if support_y > 0 or blockC_y: break
+                
+                if not blockC_y:
+                    potential_points["C"].append((C[x], support_y, C[z]))
+                if debug:
+                    logger.debug(
+                        f"\tProjected C ({C[z]}, {C[z]}, {C[z]}) to C'y ({C[x]}, {support_y}, {C[z]})")
+                
+                # add C point
+                potential_points["C"].append(C)
+                if debug:
+                    logger.debug(f"\tAdded C point: {C}")
+            
+            # --------- add A, A'z, A'x points if possible ---------
+            if not blockA:
+                support_x = 0
+                for x_level in sorted(outer_yz_planes.keys(), reverse=True):
+                    if x_level <= A[y]:
+                        for plane in outer_yz_planes[x_level]:
+                            if plane[0][0] <= A[y] < plane[1][0] and plane[0][1] <= A[z] < plane[1][1]:
+                                support_x = x_level
+                                break
+                        if support_x > 0: break
+                if support_x != Xo:
+                    potential_points["A"].append((support_x, A[y], A[z]))
+                    if debug:
+                        logger.debug(f"\t Projected A ({A[x]}, {A[y]}, {A[z]}) to A'x ({support_x}, {A[y]}, {A[z]})")
+                
+                potential_points["A"].append(A)
+                if debug:
+                    logger.debug(f"\tAdded A point: {A}")
+            
+            if not blockA_z:
+                support_z = 0
+                for z_level in sorted(outer_xy_planes.keys(), reverse=True):
+                    if z_level <= A[z] + h:
+                        for plane in outer_xy_planes[z_level]:
+                            if plane[0][0] <= A[x] < plane[1][0] and plane[0][1] <= A[y] < plane[1][1] - 5:
+                                support_z = z_level
+                                break
+                            if z_level != A[z] + h and plane[0][1] <= A[y] < plane[1][1] and plane[0][0] <= A[x] + w and plane[1][0] > A[x]:
+                                potential_points["A_z"].append((plane[0][0], A[y], z_level))
+                                if debug:
+                                    logger.debug(f"\t Projected A ({A[x]}, {A[y]}, {A[z]}) to A'z ({A[x]}, {A[y]}, {z_level}) using edge")
+                        if support_z > 0: break
+                if support_z != Zo:
+                    potential_points["A_z"].append((A[x], A[y], support_z))
+                    if debug:
+                        logger.debug(f"\t Projected A ({A[x]}, {A[y]}, {A[z]}) to A'z ({A[x]}, {A[y]}, {support_z})")
 
-    def _append_planes(self, xy_planes, xz_planes, yz_planes, Xo, Yo, Zo, w, l, h):
+            # --------- add B, B'z, B'y points if possible ---------
+            if not blockB:
+                support_y = 0
+                for y_level in sorted(outer_xz_planes.keys(), reverse=True):
+                    if y_level <= B[y]:
+                        for plane in outer_xz_planes[y_level]:
+                            if plane[0][0] <= B[x] < plane[1][0] and plane[0][1] <= B[z] < plane[1][1]:
+                                support_y = y_level
+                                break
+                        if support_y > 0: break
+                if support_y != Yo:
+                    potential_points["B"].append((B[x], support_y, B[z]))
+                    if debug:
+                        logger.debug(f"\t Projected B ({B[x]}, {B[y]}, {B[z]}) to B'y ({B[x]}, {support_y}, {B[z]})")
+                
+                potential_points["B"].append(B)
+                if debug:
+                    logger.debug(f"\tAdded B point: {B}")
+                
+            if not blockB_z:
+                support_z = 0
+                for z_level in sorted(outer_xy_planes.keys(), reverse=True):
+                    if z_level < B[z] + h:
+                        for plane in outer_xy_planes[z_level]:
+                            if plane[0][0] <= B[x] < plane[1][0] and plane[0][1] <= B[y] < plane[1][1] - 5:
+                                support_z = z_level
+                                break
+                            if plane[0][0] <= B[x] < plane[1][0] and plane[0][1] <= B[y] + l and plane[1][1] > B[y]:
+                                potential_points["B_z"].append((B[x], plane[0][1], z_level))
+                                if debug:
+                                    logger.debug(f"\t Projected B ({B[x]}, {B[y]}, {B[z]}) to B'z ({B[x]}, {B[y]}, {z_level}) using edge")
+                        if support_z > 0: break
+                if support_z != Zo:
+                    potential_points["B_z"].append((B[x], B[y], support_z))
+                    if debug:
+                        logger.debug(f"\t Projected B ({B[x]}, {B[y]}, {B[z]}) to B'z ({B[x]}, {B[y]}, {support_z})")
+                        
+        return potential_points
+
+    def _append_outer_planes(self, xy_planes, xz_planes, yz_planes, Xo, Yo, Zo, w, l, h):
         # xy plane
         if Zo + h in xy_planes:
             xy_planes[Zo + h].append(((Xo, Yo), (Xo + w, Yo + l)))
@@ -197,6 +290,25 @@ class PointGenerationMixin:
             yz_planes[Xo + w].append(((Yo, Zo), (Yo + l, Zo + h)))
         else:
             yz_planes[Xo + w] = [((Yo, Zo), (Yo + l, Zo + h))]
+    
+    def _append_inner_planes(self, xy_planes, xz_planes, yz_planes, Xo, Yo, Zo, w, l, h):
+        # xy plane
+        if Zo in xy_planes:
+            xy_planes[Zo].append(((Xo, Yo), (Xo + w, Yo + l)))
+        else:
+            xy_planes[Zo] = [((Xo, Yo), (Xo + w, Yo + l))]
+
+        # xz plane
+        if Yo in xz_planes:
+            xz_planes[Yo].append(((Xo, Zo), (Xo + w, Zo + h)))
+        else:
+            xz_planes[Yo] = [((Xo, Zo), (Xo + w, Zo + h))]
+
+        # yz plane
+        if Xo in yz_planes:
+            yz_planes[Xo].append(((Yo, Zo), (Yo + l, Zo + h)))
+        else:
+            yz_planes[Xo] = [((Yo, Zo), (Yo + l, Zo + h))]
 
     def _get_initial_container_height(self, container):
         if self._strip_pack:
@@ -209,19 +321,21 @@ class PointGenerationMixin:
             "O": (0, 0, 0),
             "A": deque(),
             "B": deque(),
-            "A_": deque(),
+            "A_z": deque(),
             "A_x": deque(),
+            "B_z": deque(),
             "B_y": deque(),
             "C": deque(),
+            "C_xy": deque(),
         }
 
-    def get_initial_xy_planes(self, W, L, H):
+    def _get_initial_outer_xy_planes(self, W, L, H):
         return {0: [((0, 0), (W, L))]}
     
-    def get_initial_xz_planes(self, W, L, H):
+    def _get_initial_outer_xz_planes(self, W, L, H):
         return {0: [((0, 0), (W, H))]}
     
-    def get_initial_yz_planes(self, W, L, H):
+    def _get_initial_outer_yz_planes(self, W, L, H):
         return {0: [((0, 0), (L, H))]}
 
     def _get_initial_point(self, potential_points, **kwargs):
@@ -266,27 +380,53 @@ class PointGenerationMixin:
         for point in points_to_try:
             Xo, Yo, Zo = point
             
-            # Try all 6 orientations
-            for rotation_state in range(6):
+            if self._rotation:
+                # Try all 6 orientations
+                for rotation_state in range(2 if item.get('horizontal_rotation_only', False) else 6):
+                    w, l, h = item['w'], item['l'], item['h']
+                    if rotation_state == 1: w, l, h = l, w, h
+                    elif rotation_state == 2: w, l, h = w, h, l
+                    elif rotation_state == 3: w, l, h = h, w, l
+                    elif rotation_state == 4: w, l, h = l, h, w
+                    elif rotation_state == 5: w, l, h = h, l, w
+
+                    # Use the 3D fitting check
+                    if self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, temp_state['placed_items'], requires_support=True, xy_planes=temp_state['outer_xy_planes']):
+                        # --- Success! A placement was found. ---
+
+                        # Update the item with its position and add it to the state
+                        placed_item = item.copy()
+                        placed_item.update({"Xo": Xo, "Yo": Yo, "Zo": Zo, "w": w, "l": l, "h": h})
+                        temp_state['placed_items'][item_id] = placed_item
+                        
+                        # Generate new points and planes based on this placement
+                        self._append_outer_planes(temp_state['outer_xy_planes'], temp_state['outer_xz_planes'], temp_state['outer_yz_planes'], Xo, Yo, Zo, w, l, h)
+                        self._append_inner_planes(temp_state['inner_xy_planes'], temp_state['inner_xz_planes'], temp_state['inner_yz_planes'], Xo, Yo, Zo, w, l, h)
+                        temp_state["potential_points"] = self._generate_3d_points(temp_state["placed_items"], 
+                            temp_state['outer_xy_planes'], temp_state['outer_xz_planes'], temp_state['outer_yz_planes'],
+                            temp_state['inner_xy_planes'], temp_state['inner_xz_planes'], temp_state['inner_yz_planes']
+                        ) 
+                        
+                        return True, temp_state # Return success and the new state
+            else:
                 w, l, h = item['w'], item['l'], item['h']
-                if rotation_state == 1: w, l, h = l, w, h
-                elif rotation_state == 2: w, l, h = w, h, l
-                elif rotation_state == 3: w, l, h = h, w, l
-                elif rotation_state == 4: w, l, h = l, h, w
-                elif rotation_state == 5: w, l, h = h, l, w
 
                 # Use the 3D fitting check
-                if self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, temp_state['placed_items'], requires_support=True, xy_planes=temp_state['xy_planes']):
+                if self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, temp_state['placed_items'], requires_support=True, xy_planes=temp_state['outer_xy_planes']):
                     # --- Success! A placement was found. ---
 
                     # Update the item with its position and add it to the state
                     placed_item = item.copy()
-                    placed_item.update({"Xo": Xo, "Yo": Yo, "Zo": Zo, "rotation_state": rotation_state})
+                    placed_item.update({"Xo": Xo, "Yo": Yo, "Zo": Zo, "w": w, "l": l, "h": h})
                     temp_state['placed_items'][item_id] = placed_item
                     
                     # Generate new points and planes based on this placement
-                    self._generate_3d_points(container, temp_state['xy_planes'], temp_state['xz_planes'], temp_state['yz_planes'], temp_state['potential_points'], Xo, Yo, Zo, w, l, h)
-                    self._append_planes(temp_state['xy_planes'], temp_state['xz_planes'], temp_state['yz_planes'], Xo, Yo, Zo, w, l, h)
+                    self._append_outer_planes(temp_state['outer_xy_planes'], temp_state['outer_xz_planes'], temp_state['outer_yz_planes'], Xo, Yo, Zo, w, l, h)
+                    self._append_inner_planes(temp_state['inner_xy_planes'], temp_state['inner_xz_planes'], temp_state['inner_yz_planes'], Xo, Yo, Zo, w, l, h)
+                    temp_state["potential_points"] = self._generate_3d_points(temp_state["placed_items"], 
+                        temp_state['outer_xy_planes'], temp_state['outer_xz_planes'], temp_state['outer_yz_planes'],
+                        temp_state['inner_xy_planes'], temp_state['inner_xz_planes'], temp_state['inner_yz_planes']
+                    ) 
                     
                     return True, temp_state # Return success and the new state
 
@@ -299,29 +439,15 @@ class PointGenerationMixin:
         for the current solving container.
         """
         solution = {}
-        for _id in current_solution:
-            item = current_solution[_id]
-            w_, l_, h_ = item["w"], item["l"], item["h"]
-            match item['rotation_state']:
-                    case 1:  # rotate 90 degrees without changing base
-                        w_, l_, h_ = l_, w_, h_
-                    case 2: # change base to w x h
-                        w_, l_, h_ = w_, h_, l_
-                    case 3: # w x h base + rotate 90 degrees
-                        w_, l_, h_ = h_, w_, l_
-                    case 4: # change base to l x h
-                        w_, l_, h_ = l_, h_, w_
-                    case 5: # l x h base + rotate 90 degrees
-                        w_, l_, h_ = h_, l_, w_
-                    case _:
-                        pass
+        for _id, item in current_solution.items():
+            
             solution[_id] = [
                 item["Xo"],
                 item["Yo"],
                 item["Zo"],
-                w_,
-                l_,
-                h_
+                item["w"],
+                item["l"],
+                item["h"]
             ]
         return solution
 
@@ -344,9 +470,12 @@ class PointGenerationMixin:
             container_states[cont_id] = {
                 'placed_items': {},
                 'potential_points': self._get_initial_potential_points(),
-                'xy_planes': self.get_initial_xy_planes(W, L, H),
-                'xz_planes': self.get_initial_xz_planes(W, L, H),
-                'yz_planes': self.get_initial_yz_planes(W, L, H),
+                'outer_xy_planes': self._get_initial_outer_xy_planes(W, L, H),
+                'outer_xz_planes': self._get_initial_outer_xz_planes(W, L, H),
+                'outer_yz_planes': self._get_initial_outer_yz_planes(W, L, H),
+                'inner_xy_planes': {},
+                'inner_xz_planes': {},
+                'inner_yz_planes': {},
             }
 
         # Main First Fit Loop: Iterate through ITEMS first
@@ -725,6 +854,9 @@ class ItemsManipulationMixin:
             return
 
         for _id in items:
+            if items[_id].get("horizontal_rotation_only", False):
+                continue
+
             w, l, h = items[_id]["w"], items[_id]["l"], items[_id]["h"]
 
             if orientation == "short":
@@ -833,7 +965,6 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
             self._copy_objective_val_per_container(),
         )
 
-    # In mixins.py, replace your calculate_obj_value method with this new version:
     def calculate_obj_value(self):
         """
         Calculates an objective value that prioritizes using the fewest containers.
@@ -848,7 +979,7 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
         sum_of_utilizations = 0.0
         total_penalty = 0.0
 
-        weights = {cont_id: 1 / (i+2) for i, cont_id in enumerate(self._containers)}
+        weights = {cont_id: 1 if i != total_containers_available-1 else 0.7 for i, cont_id in enumerate(self._containers)}
 
         # Iterate through each container that has a solution
         for cont_id in self.solution:
@@ -881,7 +1012,7 @@ class LocalSearchMixin(AbstractLocalSearch, DeepcopyMixin):
 
             center_of_mass_z = weighted_z_sum / total_items_volume
             normalized_penalty = center_of_mass_z / H
-            penalty_factor = 0.001  # Small factor to act as a micro-tie-breaker
+            penalty_factor = 0.01  # Small factor to act as a micro-tie-breaker
             total_penalty += penalty_factor * normalized_penalty
 
         # If no items were packed at all

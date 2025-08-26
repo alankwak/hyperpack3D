@@ -12,50 +12,51 @@ L = 100
 H = 30
 
 items = {
-    "item1": {
-        "w": 10,
-        "l": 15,
-        "h": 10
-    },
-    "item2": {
-        "w": 5,
-        "l": 8,
-        "h": 10
-    },
-    "item3": {
-        "w": 20,
-        "l": 10,
-        "h": 6
-    },
-    "item4": {
-        "w": 8,
-        "l": 10,
-        "h": 15
-    },
-    "item5": {
-        "w": 10,
-        "l": 10,
-        "h": 12
-    },
-    "item6": {
-        "w": 20,
-        "l": 10,
-        "h": 10
-    },
-    "item7": {
-        "w": 20,
-        "l": 12,
-        "h": 10
-    },
+    # "item1": {
+    #     "w": 10,
+    #     "l": 15,
+    #     "h": 10
+    # },
+    # "item2": {
+    #     "w": 5,
+    #     "l": 8,
+    #     "h": 10
+    # },
+    # "item3": {
+    #     "w": 20,
+    #     "l": 10,
+    #     "h": 6
+    # },
+    # "item4": {
+    #     "w": 8,
+    #     "l": 10,
+    #     "h": 15
+    # },
+    # "item5": {
+    #     "w": 10,
+    #     "l": 10,
+    #     "h": 12
+    # },
+    # "item6": {
+    #     "w": 20,
+    #     "l": 10,
+    #     "h": 10
+    # },
+    # "item7": {
+    #     "w": 20,
+    #     "l": 12,
+    #     "h": 10
+    # },
 }
-# for i in range(1, 200):
-#     items.update(
-#         [(f"item{i}", {
-#             "w": random.randint(5, 20),
-#             "l": random.randint(15, 30),
-#             "h": random.randint(10, 30)
-#         })]
-#     )
+for i in range(0, 100):
+    items.update(
+        [(f"item{i}", {
+            "w": random.randint(15, 30),
+            "l": random.randint(10, 30),
+            "h": random.randint(5, 15),
+            "horizontal_rotation_only": False,
+        })]
+    )
 containers = {
     "container2": {
         'W': 80,
@@ -72,28 +73,28 @@ containers = {
         'L': 50,
         'H': 50
     },
-    "container4": {
-        'W': 40,
-        'L': 50,
-        'H': 50
-    },
-    "container5": {
-        'W': 40,
-        'L': 50,
-        'H': 50
-    },
-    "container6": {
-        'W': 40,
-        'L': 50,
-        'H': 50
-    },
+    # "container4": {
+    #     'W': 40,
+    #     'L': 50,
+    #     'H': 50
+    # },
+    # "container5": {
+    #     'W': 40,
+    #     'L': 50,
+    #     'H': 50
+    # },
+    # "container6": {
+    #     'W': 40,
+    #     'L': 50,
+    #     'H': 50
+    # },
 }
 
 if __name__ == "__main__":
     settings = {
-        "max_time_in_seconds": 20,
-        "workers_num": 1,
-        "support_ratio": .55,
+        "max_time_in_seconds": 30,
+        "workers_num": 4,
+        "support_ratio": 0.55,
     }
 
     problem = HyperPack(containers=containers, items=items, settings=settings)
