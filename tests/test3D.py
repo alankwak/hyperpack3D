@@ -7,46 +7,46 @@ logging.basicConfig(level=logging.DEBUG)
 # L = random.randint(50, 70)
 # H = random.randint(50, 70)
 
-W = 100
-L = 100
+W = 20
+L = 40
 H = 30
 
 items = {
-    # "item1": {
-    #     "w": 10,
-    #     "l": 15,
-    #     "h": 10
-    # },
-    # "item2": {
-    #     "w": 5,
-    #     "l": 8,
-    #     "h": 10
-    # },
-    # "item3": {
-    #     "w": 20,
-    #     "l": 10,
-    #     "h": 6
-    # },
-    # "item4": {
-    #     "w": 8,
-    #     "l": 10,
-    #     "h": 15
-    # },
-    # "item5": {
-    #     "w": 10,
-    #     "l": 10,
-    #     "h": 12
-    # },
-    # "item6": {
-    #     "w": 20,
-    #     "l": 10,
-    #     "h": 10
-    # },
-    # "item7": {
-    #     "w": 20,
-    #     "l": 12,
-    #     "h": 10
-    # },
+    "item1": {
+        "w": 10,
+        "l": 15,
+        "h": 10
+    },
+    "item2": {
+        "w": 5,
+        "l": 8,
+        "h": 10
+    },
+    "item3": {
+        "w": 20,
+        "l": 10,
+        "h": 6
+    },
+    "item4": {
+        "w": 8,
+        "l": 10,
+        "h": 15
+    },
+    "item5": {
+        "w": 10,
+        "l": 10,
+        "h": 12
+    },
+    "item6": {
+        "w": 20,
+        "l": 10,
+        "h": 10
+    },
+    "item7": {
+        "w": 20,
+        "l": 12,
+        "h": 10
+    },
 }
 for i in range(0, 100):
     items.update(
@@ -68,11 +68,11 @@ containers = {
         'L': L,
         'H': H
     },
-    "container3": {
-        'W': 40,
-        'L': 50,
-        'H': 50
-    },
+    # "container3": {
+    #     'W': 40,
+    #     'L': 50,
+    #     'H': 50
+    # },
     # "container4": {
     #     'W': 40,
     #     'L': 50,
@@ -93,7 +93,7 @@ containers = {
 if __name__ == "__main__":
     settings = {
         "max_time_in_seconds": 30,
-        "workers_num": 4,
+        "workers_num": 1,
         "support_ratio": 0.55,
     }
 

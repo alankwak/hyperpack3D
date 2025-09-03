@@ -96,12 +96,15 @@ class PointGenerationMixin:
         return True
 
     def _generate_3d_points(
-            self, container_items, outer_xy_planes, outer_xz_planes, outer_yz_planes, inner_xy_planes, inner_xz_planes, inner_yz_planes, debug=False
+            self, container_items, outer_xy_planes, outer_xz_planes, outer_yz_planes, inner_xy_planes, inner_xz_planes, inner_yz_planes, debug=True
         ):
         """
         Generates a rich set of potential points from the corners of the newly placed item,
         including projections and points in concave corners.
         """
+
+        if debug:
+            logger.debug("Generating new points...")
 
         potential_points = {
             "A": deque(),
@@ -109,14 +112,14 @@ class PointGenerationMixin:
             "A_z": deque(),
             "B_z": deque(),
             "C": deque(),
-            "A_x": deque(),
-            "B_y": deque(),
-            "C_xy": deque(),
         }
 
-        for item_id, item in sorted(container_items.items()):
+        for item_id, item in container_items.items():
             Xo, Yo, Zo, w, l, h = item["Xo"], item["Yo"], item["Zo"], item["w"], item["l"], item["h"]
             
+            if(debug):
+                logger.debug(f"Generating points from item {item_id} at ({Xo}, {Yo}, {Zo}) with dimensions ({w}, {l}, {h})")
+
             x, y, z = 0, 1, 2
             # Define the 3 corners of the item
             A = (Xo, Yo + l, Zo) # origin + y
@@ -166,9 +169,9 @@ class PointGenerationMixin:
                 
                 if not blockC_x:
                     potential_points["C"].append((support_x, C[y], C[z]))
-                if debug:
-                    logger.debug(
-                        f"\tProjected C ({C[x]}, {C[y]}, {C[z]}) to C'x ({support_x}, {C[y]}, {C[z]})")
+                    if debug:
+                        logger.debug(
+                            f"\tProjected C ({C[x]}, {C[y]}, {C[z]}) to C'x ({support_x}, {C[y]}, {C[z]})")
                 
                 # check if C' can be projected to C'y
                 support_y = 0
@@ -186,10 +189,10 @@ class PointGenerationMixin:
                     if support_y > 0 or blockC_y: break
                 
                 if not blockC_y:
-                    potential_points["C"].append((C[x], support_y, C[z]))
-                if debug:
-                    logger.debug(
-                        f"\tProjected C ({C[z]}, {C[z]}, {C[z]}) to C'y ({C[x]}, {support_y}, {C[z]})")
+                    potential_points["C"].appendleft((C[x], support_y, C[z]))
+                    if debug:
+                        logger.debug(
+                            f"\tProjected C ({C[x]}, {C[y]}, {C[z]}) to C'y ({C[x]}, {support_y}, {C[z]})")
                 
                 # add C point
                 potential_points["C"].append(C)
@@ -220,10 +223,10 @@ class PointGenerationMixin:
                 for z_level in sorted(outer_xy_planes.keys(), reverse=True):
                     if z_level <= A[z] + h:
                         for plane in outer_xy_planes[z_level]:
-                            if plane[0][0] <= A[x] < plane[1][0] and plane[0][1] <= A[y] < plane[1][1] - 5:
+                            if plane[0][0] <= A[x] < plane[1][0] and plane[0][1] <= A[y] < plane[1][1]:
                                 support_z = z_level
                                 break
-                            if z_level != A[z] + h and plane[0][1] <= A[y] < plane[1][1] and plane[0][0] <= A[x] + w and plane[1][0] > A[x]:
+                            elif z_level != A[z] + h and plane[0][1] <= A[y] < plane[1][1] and plane[0][0] <= A[x] + w and plane[1][0] > A[x]:
                                 potential_points["A_z"].append((plane[0][0], A[y], z_level))
                                 if debug:
                                     logger.debug(f"\t Projected A ({A[x]}, {A[y]}, {A[z]}) to A'z ({A[x]}, {A[y]}, {z_level}) using edge")
@@ -257,10 +260,10 @@ class PointGenerationMixin:
                 for z_level in sorted(outer_xy_planes.keys(), reverse=True):
                     if z_level < B[z] + h:
                         for plane in outer_xy_planes[z_level]:
-                            if plane[0][0] <= B[x] < plane[1][0] and plane[0][1] <= B[y] < plane[1][1] - 5:
+                            if plane[0][0] <= B[x] < plane[1][0] and plane[0][1] <= B[y] < plane[1][1]:
                                 support_z = z_level
                                 break
-                            if plane[0][0] <= B[x] < plane[1][0] and plane[0][1] <= B[y] + l and plane[1][1] > B[y]:
+                            elif plane[0][0] <= B[x] < plane[1][0] and plane[0][1] <= B[y] + l and plane[1][1] > B[y]:
                                 potential_points["B_z"].append((B[x], plane[0][1], z_level))
                                 if debug:
                                     logger.debug(f"\t Projected B ({B[x]}, {B[y]}, {B[z]}) to B'z ({B[x]}, {B[y]}, {z_level}) using edge")
@@ -322,11 +325,8 @@ class PointGenerationMixin:
             "A": deque(),
             "B": deque(),
             "A_z": deque(),
-            "A_x": deque(),
             "B_z": deque(),
-            "B_y": deque(),
             "C": deque(),
-            "C_xy": deque(),
         }
 
     def _get_initial_outer_xy_planes(self, W, L, H):
@@ -346,10 +346,9 @@ class PointGenerationMixin:
     ):
         return obj_value + (w * l * h) / (W * L * H)
 
-    # In mixins.py, add this new method inside PointGenerationMixin
     def _find_placement_in_container(self, item, item_id, container, container_state):
         """
-        Tries to find a valid placement for a SINGLE item in a given container.
+        Tries to find a valid placement for a single item in a given container.
         
         Args:
             item (dict): The item to place.
@@ -392,7 +391,7 @@ class PointGenerationMixin:
 
                     # Use the 3D fitting check
                     if self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, temp_state['placed_items'], requires_support=True, xy_planes=temp_state['outer_xy_planes']):
-                        # --- Success! A placement was found. ---
+                        # Placement found
 
                         # Update the item with its position and add it to the state
                         placed_item = item.copy()
@@ -407,13 +406,12 @@ class PointGenerationMixin:
                             temp_state['inner_xy_planes'], temp_state['inner_xz_planes'], temp_state['inner_yz_planes']
                         ) 
                         
-                        return True, temp_state # Return success and the new state
+                        return True, temp_state
             else:
                 w, l, h = item['w'], item['l'], item['h']
 
-                # Use the 3D fitting check
                 if self._check_3d_fitting(W, L, H, Xo, Yo, Zo, w, l, h, temp_state['placed_items'], requires_support=True, xy_planes=temp_state['outer_xy_planes']):
-                    # --- Success! A placement was found. ---
+                    # Placement found
 
                     # Update the item with its position and add it to the state
                     placed_item = item.copy()
@@ -428,9 +426,8 @@ class PointGenerationMixin:
                         temp_state['inner_xy_planes'], temp_state['inner_xz_planes'], temp_state['inner_yz_planes']
                     ) 
                     
-                    return True, temp_state # Return success and the new state
+                    return True, temp_state
 
-        # If we get here, no placement was found for this item in this container
         return False, container_state
 
     def _get_container_solution(self, current_solution):
@@ -478,21 +475,16 @@ class PointGenerationMixin:
                 'inner_yz_planes': {},
             }
 
-        # Main First Fit Loop: Iterate through ITEMS first
         for item_id, item in items.items():
-            # Then, for each item, iterate through CONTAINERS
             for cont_id in self._containers:
                 
-                # Try to place the current item in the current container
                 was_placed, new_state = self._find_placement_in_container(
                     item, item_id, self._containers[cont_id], container_states[cont_id]
                 )
                 if was_placed:
-                    # If placed, update the container's state and move to the NEXT ITEM
                     container_states[cont_id] = new_state
-                    break # Stop searching for a container for this item
+                    break
         
-        # Post-processing: Convert final states into the required solution format
         solution = {}
         obj_val_per_container = {}
         for cont_id in self._containers:

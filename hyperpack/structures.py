@@ -60,7 +60,7 @@ class Dimensions(UserDict):
         if not isinstance(dimensions, dict):
             raise DimensionsError(DimensionsError.DIMENSIONS_TYPE)
 
-        if set(dimensions) != self.proper_keys:
+        if set(dimensions) > self.proper_keys:
             raise DimensionsError(DimensionsError.DIMENSIONS_KEYS)
 
         self.data = {}

@@ -343,7 +343,7 @@ class HyperPack(
     # hypersearch/localsearch parameters
     # max neighbors parsing
     # before accepting node as optimum
-    MAX_NEIGHBORS_THROTTLE = 50
+    MAX_NEIGHBORS_THROTTLE = 10
     # Potential points strategies constant suffix
     STRATEGIES_SUFFIX = ("C",)
     STRATEGIES_SUFFIX_STRIPACK = ("B__", "A__", "F", "E")
