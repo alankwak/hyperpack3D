@@ -1,1 +1,5 @@
 This code attempts to extend the 2D bin-packing heuristic from [AlkiviadisAleiferis's hyperpack package](https://github.com/AlkiviadisAleiferis/hyperpack) to work with 3D boxes.
+
+After working on the project, it is clear to me why 3D bin packing solvers are not always the most efficient -- there are so many ways that items can be arranged in a container that searching for better ones is not always worth it (at least without more complex methods like genetic algorithms). I've tested a variety of 3D bin packing heuristics while I worked on this project, and I can't say that any were significantly better than the others using the hyperpack's metaheuristic strategy.
+
+As of right now, though, the program does work well for relatively few items where items do not have irregularly long/small sizes. If you'd like to test it out, run ```tests/test3D.py```.
